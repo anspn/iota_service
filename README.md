@@ -10,17 +10,6 @@ management and data notarization.
 - **Supervised Architecture**: Fault-tolerant supervision tree
 - **NIF Integration**: Uses Rust NIFs for cryptographic operations
 
-## Installation
-
-Add `iota_service` to your dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:iota_service, path: "../iota_service"}
-  ]
-end
-```
 
 ## Quick Start
 
@@ -52,11 +41,6 @@ IotaService.Application (rest_for_one)
     ├── IotaService.Notarization.Queue   # Job queue
     └── IotaService.Notarization.Server  # Notarization operations
 ```
-
-### Strategy Rationale
-
-- **rest_for_one at root**: If NIF.Loader crashes, all downstream services restart
-- **one_for_one for domains**: Independent services within a domain don't affect each other
 
 ## API Reference
 
@@ -109,12 +93,6 @@ Configure via `config/config.exs`:
 config :iota_service,
   default_network: :iota,
   cache_ttl: :timer.hours(1)
-```
-
-## Testing
-
-```bash
-mix test
 ```
 
 ## License
