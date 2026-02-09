@@ -35,6 +35,9 @@ defmodule IotaService.MixProject do
       # JSON parsing
       {:jason, "~> 1.4"},
 
+      # HTTP client
+      {:req, "~> 0.5"},
+
       # Telemetry for metrics
       {:telemetry, "~> 1.2"},
 
