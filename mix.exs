@@ -44,4 +44,7 @@ defmodule IotaService.MixProject do
     ]
   end
 
+  def cli do
+    [default_env: :local]
+  end
 end

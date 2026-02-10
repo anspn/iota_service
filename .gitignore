@@ -27,3 +27,7 @@ proj_structure.md
 
 # config file with local env
 config/local.exs
+
+# all local configuration files
+*.local.txt
+
