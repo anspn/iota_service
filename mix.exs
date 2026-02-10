@@ -10,10 +10,6 @@ defmodule IotaService.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
 
-      # Docs
-      name: "IotaService",
-      source_url: "https://github.com/yourusername/iota_service",
-      docs: docs()
     ]
   end
 
@@ -48,10 +44,4 @@ defmodule IotaService.MixProject do
     ]
   end
 
-  defp docs do
-    [
-      main: "readme",
-      extras: ["README.md"]
-    ]
-  end
 end
