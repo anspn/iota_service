@@ -3,15 +3,19 @@ defmodule IotaService.NIF.Loader do
   NIF Loader GenServer
 
   Ensures the IOTA NIF library is loaded before any other services start.
-  Acts as a gate in the supervision tree - if NIF loading fails, 
+  Acts as a gate in the supervision tree - if NIF loading fails,
   downstream services won't start.
+
+  The NIF exposes two public Erlang modules:
+  - `:iota_did_nif` — DID operations (local + ledger)
+  - `:iota_notarization_nif` — Notarization operations (local + ledger)
   """
 
   use GenServer
 
   require Logger
 
-  @nif_module :iota_nif
+  @nif_modules [:iota_did_nif, :iota_notarization_nif]
 
   # Client API
 
@@ -58,8 +62,8 @@ defmodule IotaService.NIF.Loader do
     info = %{
       status: state.status,
       loaded_at: state.loaded_at,
-      nif_module: @nif_module,
-      available_functions: list_nif_functions()
+      nif_modules: @nif_modules,
+      available_functions: list_all_nif_functions()
     }
 
     {:reply, info, state}
@@ -83,7 +87,10 @@ defmodule IotaService.NIF.Loader do
 
   defp verify_nif_functions do
     try do
-      false = :iota_nif.is_valid_iota_did("not_a_did")
+      # Verify identity NIF is loaded
+      false = :iota_did_nif.is_valid_iota_did("not_a_did")
+      # Verify notarization NIF is loaded
+      true = is_binary(:iota_notarization_nif.hash_data("test"))
       :ok
     catch
       :error, :undef -> {:error, :nif_not_loaded}
@@ -92,11 +99,17 @@ defmodule IotaService.NIF.Loader do
     end
   end
 
-  defp list_nif_functions do
+  defp list_all_nif_functions do
+    Enum.flat_map(@nif_modules, fn mod ->
+      list_nif_functions(mod)
+    end)
+  end
+
+  defp list_nif_functions(module) do
     try do
-      @nif_module.module_info(:exports)
+      module.module_info(:exports)
       |> Enum.reject(fn {name, _arity} -> name in [:module_info] end)
-      |> Enum.map(fn {name, arity} -> "#{name}/#{arity}" end)
+      |> Enum.map(fn {name, arity} -> "#{module}.#{name}/#{arity}" end)
     catch
       _, _ -> []
     end

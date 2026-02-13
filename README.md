@@ -87,12 +87,20 @@ IotaService.queue_stats()
 
 ## Configuration
 
-Configure via `config/config.exs`:
+Configure via `config/config.exs`
 
-```elixir
-config :iota_service,
-  default_network: :iota,
-  cache_ttl: :timer.hours(1)
+## Testing
+
+Test against local node with:
+
+```bash
+# Unit tests only (no node needed)
+mix test
+
+# All local + ledger tests
+IOTA_TEST_SECRET_KEY=iotaprivkey1... \
+IOTA_IDENTITY_PKG_ID=0xa1fb... \
+MIX_ENV=local mix test
 ```
 
 ## License

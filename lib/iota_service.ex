@@ -1,32 +1,41 @@
 defmodule IotaService do
   @moduledoc """
-  IOTA Service - Elixir interface for IOTA Tangle operations.
+  IOTA Service - Elixir interface for IOTA Rebased operations.
 
   This module provides a high-level API for:
-  - **Identity**: DID (Decentralized Identifier) generation and management
-  - **Notarization**: Data anchoring on the IOTA Tangle
+  - **Identity**: DID (Decentralized Identifier) generation, publishing, and resolution
+  - **Notarization**: Local payload creation and on-chain CRUD via the official IOTA notarization library
 
-  ## Quick Start
+  ## Local Operations (no network required)
 
-      # Generate a new DID
+      # Generate a DID locally (placeholder tag)
       {:ok, did_result} = IotaService.generate_did()
 
-      # Notarize data
+      # Create a notarization payload
       {:ok, payload} = IotaService.notarize("Hello, IOTA!")
+
+  ## Ledger Operations (require IOTA Rebased node)
+
+      # Publish a DID on-chain
+      {:ok, published} = IotaService.publish_did(secret_key: "iotaprivkey1...")
+
+      # Create a locked notarization on-chain
+      {:ok, notarization} = IotaService.create_notarization(
+        secret_key: "iotaprivkey1...",
+        state_data: "document-hash-here"
+      )
 
   ## Architecture
 
-  The service is built on a supervision tree:
-
   ```
   IotaService.Application (rest_for_one)
-  ├── NIF.Loader           - Ensures Rust NIF is loaded
+  ├── NIF.Loader           - Ensures Rust NIF is loaded (:iota_did_nif, :iota_notarization_nif)
   ├── Identity.Supervisor  - DID services
   │   ├── Identity.Cache   - ETS cache for DIDs
-  │   └── Identity.Server  - DID operations
+  │   └── Identity.Server  - DID operations (local + ledger)
   └── Notarization.Supervisor
       ├── Notarization.Queue  - Job queue
-      └── Notarization.Server - Notarization operations
+      └── Notarization.Server - Notarization operations (local + ledger CRUD)
   ```
   """
 
@@ -34,11 +43,14 @@ defmodule IotaService do
   alias IotaService.Notarization
 
   # ============================================================================
-  # Identity API
+  # Identity API — Local Operations
   # ============================================================================
 
   @doc """
-  Generate a new IOTA DID.
+  Generate a new IOTA DID locally (not published on-chain).
+
+  The generated DID has a placeholder tag (all zeros). Use `publish_did/1`
+  to get a real on-chain DID.
 
   ## Options
   - `:network` - Target network: `:iota`, `:smr`, `:rms`, `:atoi` (default: `:iota`)
@@ -88,17 +100,42 @@ defmodule IotaService do
   defdelegate get_cached_did(did), to: Identity.Cache, as: :get
 
   # ============================================================================
-  # Notarization API
+  # Identity API — Ledger Operations
   # ============================================================================
 
   @doc """
-  Notarize data on the IOTA Tangle.
+  Create and publish a DID on the IOTA Rebased ledger.
+
+  The resulting DID has a real, unique tag derived from the on-chain object.
+
+  ## Options
+  - `:secret_key` - (required) Ed25519 private key (Bech32, Base64)
+  - `:node_url` - URL of the IOTA node (default: from app config)
+  - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto)
+  - `:gas_coin_id` - Specific gas coin ObjectID (default: "" for auto)
+  - `:cache` - Whether to cache the result (default: true)
+  """
+  @spec publish_did(keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate publish_did(opts), to: Identity.Server
+
+  @doc """
+  Resolve a published DID from the IOTA ledger.
+
+  ## Options
+  - `:node_url` - URL of the IOTA node (default: from app config)
+  - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto)
+  """
+  @spec resolve_did(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate resolve_did(did, opts \\ []), to: Identity.Server
+
+  # ============================================================================
+  # Notarization API — Local Operations
+  # ============================================================================
+
+  @doc """
+  Create a local notarization payload (not published on-chain).
 
   Creates a timestamped, hash-anchored payload ready for Tangle submission.
-
-  ## Parameters
-  - `data` - Binary data to notarize
-  - `tag` - Optional tag/label (default: "iota_service")
 
   ## Examples
 
@@ -125,6 +162,68 @@ defmodule IotaService do
   """
   @spec verify_notarization(String.t()) :: {:ok, map()} | {:error, term()}
   defdelegate verify_notarization(payload_hex), to: Notarization.Server, as: :verify_payload
+
+  # ============================================================================
+  # Notarization API — Ledger Operations (IOTA Rebased)
+  # ============================================================================
+
+  @doc """
+  Create a locked (immutable) notarization on the IOTA Rebased ledger.
+
+  ## Options
+  - `:secret_key` - (required) Ed25519 private key
+  - `:state_data` - (required) Data to notarize (e.g., a document hash)
+  - `:description` - Immutable description label (default: "")
+  - `:node_url` - IOTA node URL (default: from app config)
+  - `:notarize_pkg_id` - Notarization Move package ObjectID (default: from app config)
+  """
+  @spec create_notarization(keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate create_notarization(opts), to: Notarization.Server, as: :create_on_chain
+
+  @doc """
+  Create a dynamic (updatable) notarization on the IOTA Rebased ledger.
+
+  Same options as `create_notarization/1`. The state can be updated via
+  `update_notarization/3`.
+  """
+  @spec create_dynamic_notarization(keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate create_dynamic_notarization(opts), to: Notarization.Server, as: :create_dynamic_on_chain
+
+  @doc """
+  Read a notarization from the IOTA Rebased ledger by object ID.
+
+  ## Options
+  - `:node_url` - IOTA node URL (default: from app config)
+  - `:notarize_pkg_id` - Notarization Move package ObjectID (default: from app config)
+  """
+  @spec read_notarization(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate read_notarization(object_id, opts \\ []), to: Notarization.Server, as: :read_on_chain
+
+  @doc """
+  Update the state of a dynamic notarization.
+
+  ## Options
+  - `:secret_key` - (required) Ed25519 private key
+  - `:node_url` - IOTA node URL (default: from app config)
+  - `:notarize_pkg_id` - Notarization Move package ObjectID (default: from app config)
+  """
+  @spec update_notarization(String.t(), String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate update_notarization(object_id, new_state_data, opts \\ []),
+    to: Notarization.Server,
+    as: :update_on_chain
+
+  @doc """
+  Destroy a notarization on the ledger.
+
+  ## Options
+  - `:secret_key` - (required) Ed25519 private key
+  - `:node_url` - IOTA node URL (default: from app config)
+  - `:notarize_pkg_id` - Notarization Move package ObjectID (default: from app config)
+  """
+  @spec destroy_notarization(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate destroy_notarization(object_id, opts \\ []),
+    to: Notarization.Server,
+    as: :destroy_on_chain
 
   # ============================================================================
   # Queue API

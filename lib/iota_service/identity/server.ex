@@ -1,6 +1,19 @@
 defmodule IotaService.Identity.Server do
   @moduledoc """
   GenServer for DID (Decentralized Identifier) operations.
+
+  Supports both local DID generation and on-chain publishing/resolution
+  via the IOTA Rebased ledger (MoveVM).
+
+  ## Local operations (no network required)
+  - `generate_did/1` — Generate a DID locally (placeholder tag)
+  - `valid_did?/1` — Validate DID format
+  - `extract_did/1` — Extract DID from a document JSON
+  - `create_did_url/2` — Create a DID URL with fragment
+
+  ## Ledger operations (require IOTA node)
+  - `publish_did/1` — Create and publish a DID on-chain
+  - `resolve_did/2` — Resolve a published DID from the ledger
   """
 
   use GenServer
@@ -10,6 +23,7 @@ defmodule IotaService.Identity.Server do
   alias IotaService.Identity.Cache
 
   @default_network :iota
+  @nif_module :iota_did_nif
 
   # Client API
 
@@ -21,6 +35,37 @@ defmodule IotaService.Identity.Server do
   def generate_did(opts \\ []) do
     timeout = Keyword.get(opts, :timeout, 30_000)
     GenServer.call(__MODULE__, {:generate_did, opts}, timeout)
+  end
+
+  @doc """
+  Create and publish a DID on the IOTA Rebased ledger.
+
+  ## Options
+  - `:secret_key` - Ed25519 private key (Bech32, Base64 33-byte, or Base64 32-byte)
+  - `:node_url` - URL of the IOTA node (default: from app config)
+  - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto-discovery)
+  - `:gas_coin_id` - Specific gas coin ObjectID (default: "" for auto-selection)
+  - `:cache` - Whether to cache the result (default: true)
+  - `:timeout` - GenServer call timeout in ms (default: 60_000)
+  """
+  @spec publish_did(keyword()) :: {:ok, map()} | {:error, term()}
+  def publish_did(opts) do
+    timeout = Keyword.get(opts, :timeout, 60_000)
+    GenServer.call(__MODULE__, {:publish_did, opts}, timeout)
+  end
+
+  @doc """
+  Resolve a published DID from the IOTA ledger.
+
+  ## Options
+  - `:node_url` - URL of the IOTA node (default: from app config)
+  - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto-discovery)
+  - `:timeout` - GenServer call timeout in ms (default: 30_000)
+  """
+  @spec resolve_did(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def resolve_did(did, opts \\ []) when is_binary(did) do
+    timeout = Keyword.get(opts, :timeout, 30_000)
+    GenServer.call(__MODULE__, {:resolve_did, did, opts}, timeout)
   end
 
   @spec valid_did?(String.t()) :: boolean()
@@ -46,6 +91,7 @@ defmodule IotaService.Identity.Server do
 
     state = %{
       generated_count: 0,
+      published_count: 0,
       last_generation: nil,
       errors: []
     }
@@ -96,6 +142,71 @@ defmodule IotaService.Identity.Server do
   end
 
   @impl true
+  def handle_call({:publish_did, opts}, _from, state) do
+    start_time = System.monotonic_time()
+    cache? = Keyword.get(opts, :cache, true)
+
+    result =
+      with {:ok, secret_key} <- require_opt(opts, :secret_key),
+           node_url <- ledger_opt(opts, :node_url),
+           identity_pkg_id <- ledger_opt(opts, :identity_pkg_id, ""),
+           gas_coin_id <- Keyword.get(opts, :gas_coin_id, ""),
+           {:ok, json} <- call_nif(:create_and_publish_did, [secret_key, node_url, identity_pkg_id, gas_coin_id]),
+           {:ok, parsed} <- Jason.decode(json) do
+        did_result = %{
+          did: parsed["did"],
+          document: parsed["document"],
+          verification_method_fragment: parsed["verification_method_fragment"],
+          network: parsed["network"],
+          sender_address: parsed["sender_address"],
+          published_at: DateTime.utc_now()
+        }
+
+        if cache?, do: Cache.put(did_result.did, did_result)
+
+        emit_telemetry(:publish_did, start_time, %{success: true})
+        {:ok, did_result}
+      else
+        {:error, reason} = error ->
+          emit_telemetry(:publish_did, start_time, %{success: false})
+          Logger.warning("DID publishing failed: #{inspect(reason)}")
+          error
+      end
+
+    new_state =
+      case result do
+        {:ok, _} ->
+          %{state | published_count: state.published_count + 1, last_generation: DateTime.utc_now()}
+
+        {:error, reason} ->
+          %{state | errors: [{DateTime.utc_now(), reason} | Enum.take(state.errors, 99)]}
+      end
+
+    {:reply, result, new_state}
+  end
+
+  @impl true
+  def handle_call({:resolve_did, did, opts}, _from, state) do
+    start_time = System.monotonic_time()
+
+    result =
+      with node_url <- ledger_opt(opts, :node_url),
+           identity_pkg_id <- ledger_opt(opts, :identity_pkg_id, ""),
+           {:ok, json} <- call_nif(:resolve_did, [did, node_url, identity_pkg_id]),
+           {:ok, parsed} <- Jason.decode(json) do
+        emit_telemetry(:resolve_did, start_time, %{success: true})
+        {:ok, parsed}
+      else
+        {:error, reason} = error ->
+          emit_telemetry(:resolve_did, start_time, %{success: false})
+          Logger.warning("DID resolution failed: #{inspect(reason)}")
+          error
+      end
+
+    {:reply, result, state}
+  end
+
+  @impl true
   def handle_call({:valid_did?, did}, _from, state) do
     result = call_nif(:is_valid_iota_did, [did])
     {:reply, result == {:ok, true}, state}
@@ -127,8 +238,24 @@ defmodule IotaService.Identity.Server do
     {:error, {:invalid_network, network}}
   end
 
+  defp require_opt(opts, key) do
+    case Keyword.fetch(opts, key) do
+      {:ok, value} when is_binary(value) and value != "" -> {:ok, value}
+      _ -> {:error, {:missing_option, key}}
+    end
+  end
+
+  defp ledger_opt(opts, key, default \\ nil) do
+    Keyword.get_lazy(opts, key, fn ->
+      case key do
+        :node_url -> Application.get_env(:iota_service, :node_url, default || "http://127.0.0.1:9000")
+        :identity_pkg_id -> Application.get_env(:iota_service, :identity_pkg_id, default || "")
+      end
+    end)
+  end
+
   defp call_nif(function, args) do
-    case apply(:iota_nif, function, args) do
+    case apply(@nif_module, function, args) do
       {:ok, result} -> {:ok, result}
       {:error, reason} -> {:error, reason}
       true -> {:ok, true}

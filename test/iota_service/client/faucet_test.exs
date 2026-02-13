@@ -3,14 +3,6 @@ defmodule IotaService.Client.FaucetTest do
 
   @moduletag :local
 
-  setup_all do
-    if Mix.env() != :local do
-      {:skip, "Faucet tests only run in Mix.env == :local"}
-    else
-      :ok
-    end
-  end
-
   test "requests gas tokens successfully" do
     address_file = Application.fetch_env!(:iota_service, :faucet_address_file)
 
