@@ -15,7 +15,7 @@ defmodule IotaService.Web.Frontend.Templates do
     :assigns
   ])
 
-  EEx.function_from_file(:defp, :home_html, Path.join(@template_dir, "home.html.eex"), [
+  EEx.function_from_file(:defp, :dashboard_html, Path.join(@template_dir, "home.html.eex"), [
     :assigns
   ])
 
@@ -32,18 +32,28 @@ defmodule IotaService.Web.Frontend.Templates do
   def render(template, assigns \\ %{}) do
     inner = render_inner(template, assigns)
 
+    login_required = Map.get(assigns, :login_required, true)
+
+    version =
+      case Application.spec(:iota_service, :vsn) do
+        nil -> "dev"
+        vsn -> to_string(vsn)
+      end
+
     layout_html(%{
       title: page_title(template),
       active: template,
-      inner_content: inner
+      inner_content: inner,
+      login_required: login_required,
+      version: version
     })
   end
 
-  defp render_inner(:home, assigns), do: home_html(assigns)
+  defp render_inner(:dashboard, assigns), do: dashboard_html(assigns)
   defp render_inner(:identity, assigns), do: identity_html(assigns)
   defp render_inner(:login, assigns), do: login_html(assigns)
 
-  defp page_title(:home), do: "Dashboard — IOTA Service"
+  defp page_title(:dashboard), do: "Dashboard — IOTA Service"
   defp page_title(:identity), do: "Identity — IOTA Service"
   defp page_title(:login), do: "Login — IOTA Service"
   defp page_title(_), do: "IOTA Service"

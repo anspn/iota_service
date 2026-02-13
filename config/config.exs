@@ -11,7 +11,9 @@ config :iota_service,
   notarize_pkg_id: "",
   # Web server
   port: 4000,
-  start_web: true
+  start_web: true,
+  # Set to true to require login before accessing the app
+  login_required: true
 
 # JWT Authentication
 config :iota_service, IotaService.Web.Auth,

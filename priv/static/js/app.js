@@ -1,8 +1,13 @@
 /**
  * IOTA Service — Frontend JavaScript
  *
- * Auth flow: login page stores JWT in sessionStorage → protected pages
- * read it back. Identity page sends client-supplied ledger params.
+ * Auth flow:
+ *   - When login_required is enabled the server renders /login as the root (/).
+ *   - On successful login, JWT is stored in sessionStorage and the browser
+ *     redirects to /dashboard.
+ *   - Protected pages (dashboard, identity) check for the token and redirect
+ *     back to /login when login_required is on and no token is present.
+ *   - When login_required is off, auth checks are skipped entirely.
  */
 
 // ---------------------------------------------------------------------------
@@ -20,6 +25,23 @@ function clearToken() {
 }
 function isLoggedIn() {
   return !!getToken();
+}
+
+/** Read the server-injected flag from <body data-login-required="true|false"> */
+function isLoginRequired() {
+  return document.body.dataset.loginRequired === "true";
+}
+
+/**
+ * If login is required and the user has no token, redirect to /login.
+ * Returns true when the redirect happens (caller should bail out).
+ */
+function requireAuth() {
+  if (isLoginRequired() && !isLoggedIn()) {
+    window.location.href = "/login";
+    return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,12 +92,18 @@ function showNotice(id, message, type = "success") {
 }
 
 // ---------------------------------------------------------------------------
-// Nav: auth state — show Login or Logout in nav
+// Nav: auth state — show Login or Logout link
 // ---------------------------------------------------------------------------
 
 function updateNav() {
   const authItem = document.getElementById("nav-auth-item");
-  if (!authItem) return;
+  if (!authItem) return; // nav hidden on login page
+
+  if (!isLoginRequired()) {
+    // No auth required — hide the auth nav item entirely
+    authItem.style.display = "none";
+    return;
+  }
 
   if (isLoggedIn()) {
     authItem.innerHTML = '<a href="#" id="nav-logout">Logout</a>';
@@ -87,16 +115,6 @@ function updateNav() {
   } else {
     authItem.innerHTML = '<a href="/login">Login</a>';
   }
-
-  // Auth-gated links: redirect to /login if not logged in
-  document.querySelectorAll("[data-auth-link]").forEach((link) => {
-    link.addEventListener("click", (e) => {
-      if (!isLoggedIn()) {
-        e.preventDefault();
-        window.location.href = "/login";
-      }
-    });
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -107,9 +125,9 @@ function initLogin() {
   const form = document.getElementById("login-form");
   if (!form) return;
 
-  // Already logged in? Go to identity page
+  // Already logged in? Skip to dashboard
   if (isLoggedIn()) {
-    window.location.href = "/identity";
+    window.location.href = "/";
     return;
   }
 
@@ -122,11 +140,18 @@ function initLogin() {
       const res = await api("POST", "/auth/login", { email, password });
       if (res.status === 200) {
         setToken(res.data.token);
-        showNotice("login-status", `Authenticated as ${res.data.user.email}`, "success");
-        // Small delay so the user can see the success message, then redirect
-        setTimeout(() => (window.location.href = "/identity"), 600);
+        showNotice(
+          "login-status",
+          `Authenticated as ${res.data.user.email}`,
+          "success"
+        );
+        setTimeout(() => (window.location.href = "/"), 600);
       } else {
-        showNotice("login-status", res.data.message || "Login failed", "error");
+        showNotice(
+          "login-status",
+          res.data.message || "Login failed",
+          "error"
+        );
       }
     } catch (err) {
       showNotice("login-status", `Error: ${err.message}`, "error");
@@ -137,21 +162,23 @@ function initLogin() {
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard — Quick DID generation
+// Dashboard
 // ---------------------------------------------------------------------------
 
 function initDashboard() {
   const btn = document.getElementById("btn-quick-did");
   if (!btn) return;
 
+  // Auth gate
+  if (requireAuth()) return;
+
   btn.addEventListener("click", async () => {
-    if (!isLoggedIn()) {
-      window.location.href = "/login";
-      return;
-    }
     setLoading("btn-quick-did", true);
     try {
-      const res = await api("POST", "/dids", { network: "iota", publish: false });
+      const res = await api("POST", "/dids", {
+        network: "iota",
+        publish: false,
+      });
       show("quick-did-result", res.data, res.status >= 400);
     } catch (err) {
       show("quick-did-result", `Error: ${err.message}`, true);
@@ -169,11 +196,8 @@ function initIdentity() {
   const createForm = document.getElementById("create-did-form");
   if (!createForm) return;
 
-  // Gate: must be logged in
-  if (!isLoggedIn()) {
-    window.location.href = "/login";
-    return;
-  }
+  // Auth gate
+  if (requireAuth()) return;
 
   // --- Publish toggle → show/hide ledger params vs local-only section ------
   const publishSwitch = document.getElementById("did-publish");
@@ -219,7 +243,6 @@ function initIdentity() {
       const res = await api("POST", "/dids", body);
       show("create-did-result", res.data, res.status >= 400);
       if (res.status === 201 && res.data.did) {
-        // Auto-fill resolve/revoke inputs with the new DID
         const resolveInput = document.getElementById("resolve-did-input");
         const revokeInput = document.getElementById("revoke-did-input");
         if (resolveInput) resolveInput.value = res.data.did;
@@ -242,11 +265,10 @@ function initIdentity() {
       const pkgId = document.getElementById("resolve-identity-pkg-id").value;
 
       try {
-        let qs = "";
         const params = new URLSearchParams();
         if (nodeUrl) params.set("node_url", nodeUrl);
         if (pkgId) params.set("identity_pkg_id", pkgId);
-        qs = params.toString();
+        const qs = params.toString();
 
         const encodedDid = encodeURIComponent(did);
         const url = `/dids/${encodedDid}` + (qs ? `?${qs}` : "");

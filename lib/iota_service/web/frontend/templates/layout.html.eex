@@ -8,17 +8,19 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
   <link rel="stylesheet" href="/static/css/app.css" />
 </head>
-<body>
+<body data-login-required="<%= assigns.login_required %>">
+  <%= if assigns.active != :login do %>
   <nav class="container-fluid">
     <ul>
       <li><strong>🔷 IOTA Service</strong></li>
     </ul>
     <ul>
-      <li><a href="/" class="<%= if assigns.active == :home, do: "contrast", else: "" %>">Dashboard</a></li>
-      <li><a href="/identity" class="<%= if assigns.active == :identity, do: "contrast", else: "" %>" data-auth-link>Identity</a></li>
+      <li><a href="/" class="<%= if assigns.active == :dashboard, do: "contrast", else: "" %>">Dashboard</a></li>
+      <li><a href="/identity" class="<%= if assigns.active == :identity, do: "contrast", else: "" %>">Identity</a></li>
       <li id="nav-auth-item"></li>
     </ul>
   </nav>
+  <% end %>
 
   <main class="container">
     <%= assigns.inner_content %>
@@ -26,7 +28,11 @@
 
   <footer class="container">
     <hr />
-    <small>IOTA Service v0.1.0 · Elixir · Bandit · Plug</small>
+    <small>
+      &copy; 2026 <a href="https://github.com/anspn">anspn</a> &middot;
+      IOTA Service v<%= assigns.version %> &middot;
+      <a href="https://github.com/anspn/iota_service/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    </small>
   </footer>
 
   <script src="/static/js/app.js"></script>
