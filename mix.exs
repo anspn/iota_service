@@ -28,6 +28,13 @@ defmodule IotaService.MixProject do
       # IOTA NIF library (fetched via git)
       {:iota_nif, git: "https://github.com/anspn/iota_nif.git", branch: "main"},
 
+      # Web server & HTTP
+      {:bandit, "~> 1.10"},
+      {:plug, "~> 1.19"},
+
+      # JWT authentication
+      {:joken, "~> 2.6"},
+
       # JSON parsing
       {:jason, "~> 1.4"},
 

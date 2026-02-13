@@ -1,0 +1,22 @@
+<% _ = assigns %>
+<section>
+  <hgroup>
+    <h1>Login</h1>
+    <p>Authenticate to access the IOTA Service console</p>
+  </hgroup>
+
+  <article>
+    <div id="login-status" class="notice" style="display:none;"></div>
+    <form id="login-form" onsubmit="return false;">
+      <label>
+        Email
+        <input type="email" id="login-email" value="dev@iota.local" required />
+      </label>
+      <label>
+        Password
+        <input type="password" id="login-password" value="iota_dev_2026" required />
+      </label>
+      <button type="submit" id="btn-login">Sign in</button>
+    </form>
+  </article>
+</section>

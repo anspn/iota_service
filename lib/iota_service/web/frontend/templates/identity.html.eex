@@ -1,0 +1,110 @@
+<% _ = assigns %>
+<section>
+  <hgroup>
+    <h1>Identity Management</h1>
+    <p>Create, resolve, and manage IOTA DIDs on the Rebased ledger</p>
+  </hgroup>
+
+  <!-- Create DID ------------------------------------------------------------>
+  <article>
+    <header>
+      <h3>Create DID</h3>
+    </header>
+    <form id="create-did-form" onsubmit="return false;">
+      <label>
+        <input type="checkbox" id="did-publish" role="switch" checked />
+        Publish on-chain
+      </label>
+
+      <div id="ledger-params">
+        <label>
+          Secret Key
+          <input type="password" id="did-secret-key"
+                 placeholder="iotaprivkey1... or base64 Ed25519 key" required />
+          <small>Your Ed25519 private key (Bech32 or Base64). Never leaves the browser → server → NIF pipeline.</small>
+        </label>
+        <div class="grid">
+          <label>
+            Node URL
+            <input type="url" id="did-node-url"
+                   value="http://127.0.0.1:9000"
+                   placeholder="http://127.0.0.1:9000" required />
+          </label>
+          <label>
+            Identity Package ID
+            <input type="text" id="did-identity-pkg-id"
+                   placeholder="0x... (empty for auto-discovery)" />
+            <small>Move package ObjectID. Leave empty for official networks.</small>
+          </label>
+        </div>
+      </div>
+
+      <details id="local-only-section" style="display:none;">
+        <summary>Local-only mode (no ledger — generates placeholder DID)</summary>
+        <p>A local DID has an all-zeros tag and is not published on-chain.</p>
+        <label>
+          Network
+          <select id="did-network">
+            <option value="iota" selected>iota</option>
+            <option value="smr">smr (Shimmer)</option>
+            <option value="rms">rms (Shimmer testnet)</option>
+            <option value="atoi">atoi (IOTA testnet)</option>
+          </select>
+        </label>
+      </details>
+
+      <button type="submit" id="btn-create-did">Publish DID</button>
+    </form>
+    <pre id="create-did-result" class="result-box" style="display:none;"></pre>
+  </article>
+
+  <!-- Resolve DID ----------------------------------------------------------->
+  <article>
+    <header>
+      <h3>Resolve DID</h3>
+    </header>
+    <form id="resolve-did-form" onsubmit="return false;">
+      <label>
+        DID
+        <input type="text" id="resolve-did-input"
+               placeholder="did:iota:0x..." />
+      </label>
+      <div class="grid">
+        <label>
+          Node URL
+          <input type="url" id="resolve-node-url"
+                 value="http://127.0.0.1:9000" />
+        </label>
+        <label>
+          Identity Package ID
+          <input type="text" id="resolve-identity-pkg-id"
+                 placeholder="0x... (empty for auto)" />
+        </label>
+      </div>
+      <button type="submit" id="btn-resolve-did" class="outline">Resolve</button>
+    </form>
+    <pre id="resolve-did-result" class="result-box" style="display:none;"></pre>
+  </article>
+
+  <!-- Revoke DID ------------------------------------------------------------>
+  <article>
+    <header>
+      <h3>Revoke DID</h3>
+    </header>
+    <form id="revoke-did-form" onsubmit="return false;">
+      <div class="grid">
+        <label>
+          DID
+          <input type="text" id="revoke-did-input"
+                 placeholder="did:iota:0x..." />
+        </label>
+        <label>
+          Reason (optional)
+          <input type="text" id="revoke-reason" placeholder="Key compromised" />
+        </label>
+      </div>
+      <button type="submit" id="btn-revoke-did" class="outline secondary">Revoke</button>
+    </form>
+    <pre id="revoke-did-result" class="result-box" style="display:none;"></pre>
+  </article>
+</section>
