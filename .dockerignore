@@ -1,0 +1,41 @@
+# Build artifacts
+_build/
+deps/
+cover/
+doc/
+
+# Version control
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation & meta
+README.md
+LICENSE
+CLAUDE.md
+proj_structure.md
+oa/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Test artifacts
+test/
+tmp/
+erl_crash.dump
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -31,3 +31,8 @@ config/local.exs
 # all local configuration files
 *.local.txt
 
+# Docker env file (contains secrets)
+.env
+
+# AI context (just testing out)
+CLAUDE.md

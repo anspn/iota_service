@@ -1,0 +1,40 @@
+# =============================================================================
+# Docker Compose for iota_service
+# =============================================================================
+# Usage:
+#   docker compose up -d          # start all services
+#   docker compose logs -f app    # follow app logs
+#   docker compose down            # stop all services
+# =============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iota_service
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      # --- Required ---
+      SECRET_KEY_BASE: "${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}"
+      # --- Optional (defaults shown) ---
+      PORT: "4000"
+      IOTA_NODE_URL: "${IOTA_NODE_URL:-http://host.docker.internal:9000}"
+      IOTA_FAUCET_URL: "${IOTA_FAUCET_URL:-https://faucet.testnet.iota.cafe/gas}"
+      IOTA_IDENTITY_PKG_ID: "${IOTA_IDENTITY_PKG_ID:-}"
+      IOTA_NOTARIZE_PKG_ID: "${IOTA_NOTARIZE_PKG_ID:-}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@iota.local}"
+      ADMIN_USER_ID: "${ADMIN_USER_ID:-usr_admin}"
+      TOKEN_TTL_SECONDS: "${TOKEN_TTL_SECONDS:-3600}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    # Add extra_hosts so host.docker.internal resolves on Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
