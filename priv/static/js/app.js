@@ -1,13 +1,12 @@
 /**
  * IOTA Service — Frontend JavaScript
  *
- * Auth flow:
- *   - When login_required is enabled the server renders /login as the root (/).
- *   - On successful login, JWT is stored in sessionStorage and the browser
- *     redirects to /dashboard.
- *   - Protected pages (dashboard, identity) check for the token and redirect
- *     back to /login when login_required is on and no token is present.
- *   - When login_required is off, auth checks are skipped entirely.
+ * Auth flow with RBAC:
+ *   - On login, JWT and role are stored in sessionStorage.
+ *   - admin role → redirected to / (dashboard), can navigate to /identity.
+ *   - user  role → redirected to /portal (DID upload page).
+ *   - Nav links are rendered dynamically per role.
+ *   - When login_required is off, auth checks are skipped.
  */
 
 // ---------------------------------------------------------------------------
@@ -20,8 +19,15 @@ function getToken() {
 function setToken(t) {
   sessionStorage.setItem("iota_token", t);
 }
-function clearToken() {
+function getRole() {
+  return sessionStorage.getItem("iota_role");
+}
+function setRole(r) {
+  sessionStorage.setItem("iota_role", r);
+}
+function clearSession() {
   sessionStorage.removeItem("iota_token");
+  sessionStorage.removeItem("iota_role");
 }
 function isLoggedIn() {
   return !!getToken();
@@ -42,6 +48,26 @@ function requireAuth() {
     return true;
   }
   return false;
+}
+
+/**
+ * Require a specific role. Redirects away if the wrong role.
+ * Returns true when a redirect happens.
+ */
+function requireRole(role) {
+  if (!isLoginRequired()) return false;
+  if (requireAuth()) return true;
+  if (getRole() !== role) {
+    // Wrong role — send to correct home
+    window.location.href = getRole() === "admin" ? "/" : "/portal";
+    return true;
+  }
+  return false;
+}
+
+/** Return the landing page for the current role. */
+function roleLandingPage() {
+  return getRole() === "user" ? "/portal" : "/";
 }
 
 // ---------------------------------------------------------------------------
@@ -92,15 +118,26 @@ function showNotice(id, message, type = "success") {
 }
 
 // ---------------------------------------------------------------------------
-// Nav: auth state — show Login or Logout link
+// Nav: role-aware links + auth state
 // ---------------------------------------------------------------------------
 
 function updateNav() {
-  const authItem = document.getElementById("nav-auth-item");
-  if (!authItem) return; // nav hidden on login page
+  const navLinks = document.getElementById("nav-links");
+  if (!navLinks) return; // nav hidden on login page
 
+  const authItem = document.getElementById("nav-auth-item");
+  const role = getRole();
+
+  // Build role-specific nav links (inserted before auth item)
+  if (role === "admin" || !isLoginRequired()) {
+    insertNavLink(navLinks, authItem, "/", "Dashboard", "dashboard");
+    insertNavLink(navLinks, authItem, "/identity", "Identity", "identity");
+  } else if (role === "user") {
+    insertNavLink(navLinks, authItem, "/portal", "Portal", "portal");
+  }
+
+  // Auth item
   if (!isLoginRequired()) {
-    // No auth required — hide the auth nav item entirely
     authItem.style.display = "none";
     return;
   }
@@ -109,12 +146,27 @@ function updateNav() {
     authItem.innerHTML = '<a href="#" id="nav-logout">Logout</a>';
     document.getElementById("nav-logout").addEventListener("click", (e) => {
       e.preventDefault();
-      clearToken();
+      clearSession();
       window.location.href = "/login";
     });
   } else {
     authItem.innerHTML = '<a href="/login">Login</a>';
   }
+}
+
+/** Insert a <li><a> before a reference node. Highlights based on current path. */
+function insertNavLink(parent, before, href, label, key) {
+  const li = document.createElement("li");
+  const a = document.createElement("a");
+  a.href = href;
+  a.textContent = label;
+  // Highlight active link
+  const current = window.location.pathname;
+  if (current === href || (href !== "/" && current.startsWith(href))) {
+    a.className = "contrast";
+  }
+  li.appendChild(a);
+  parent.insertBefore(li, before);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,9 +177,9 @@ function initLogin() {
   const form = document.getElementById("login-form");
   if (!form) return;
 
-  // Already logged in? Skip to dashboard
+  // Already logged in? Skip to role-appropriate page
   if (isLoggedIn()) {
-    window.location.href = "/";
+    window.location.href = roleLandingPage();
     return;
   }
 
@@ -140,12 +192,14 @@ function initLogin() {
       const res = await api("POST", "/auth/login", { email, password });
       if (res.status === 200) {
         setToken(res.data.token);
+        setRole(res.data.user.role || "user");
         showNotice(
           "login-status",
-          `Authenticated as ${res.data.user.email}`,
+          `Authenticated as ${res.data.user.email} (${res.data.user.role})`,
           "success"
         );
-        setTimeout(() => (window.location.href = "/"), 600);
+        const dest = res.data.user.role === "user" ? "/portal" : "/";
+        setTimeout(() => (window.location.href = dest), 600);
       } else {
         showNotice(
           "login-status",
@@ -169,8 +223,8 @@ function initDashboard() {
   const btn = document.getElementById("btn-quick-did");
   if (!btn) return;
 
-  // Auth gate
-  if (requireAuth()) return;
+  // Admin-only page
+  if (requireRole("admin")) return;
 
   btn.addEventListener("click", async () => {
     setLoading("btn-quick-did", true);
@@ -196,8 +250,8 @@ function initIdentity() {
   const createForm = document.getElementById("create-did-form");
   if (!createForm) return;
 
-  // Auth gate
-  if (requireAuth()) return;
+  // Admin-only page
+  if (requireRole("admin")) return;
 
   // --- Publish toggle → show/hide ledger params vs local-only section ------
   const publishSwitch = document.getElementById("did-publish");
@@ -281,19 +335,24 @@ function initIdentity() {
       }
     });
 
-  // --- Revoke DID ----------------------------------------------------------
+  // --- Deactivate DID ------------------------------------------------------
   document
     .getElementById("revoke-did-form")
     .addEventListener("submit", async () => {
       setLoading("btn-revoke-did", true);
       const did = document.getElementById("revoke-did-input").value;
-      const reason =
-        document.getElementById("revoke-reason").value || undefined;
+      const secretKey = document.getElementById("revoke-secret-key").value;
+      const nodeUrl =
+        document.getElementById("revoke-node-url").value || undefined;
+      const pkgId =
+        document.getElementById("revoke-identity-pkg-id").value || undefined;
 
       try {
         const encodedDid = encodeURIComponent(did);
         const res = await api("POST", `/dids/${encodedDid}/revoke`, {
-          reason,
+          secret_key: secretKey,
+          node_url: nodeUrl,
+          identity_pkg_id: pkgId,
         });
         show("revoke-did-result", res.data, res.status >= 400);
       } catch (err) {
@@ -305,6 +364,53 @@ function initIdentity() {
 }
 
 // ---------------------------------------------------------------------------
+// Portal page (user role)
+// ---------------------------------------------------------------------------
+
+function initPortal() {
+  const form = document.getElementById("upload-did-form");
+  if (!form) return;
+
+  // User-only page
+  if (requireRole("user")) return;
+
+  form.addEventListener("submit", async () => {
+    setLoading("btn-upload-did", true);
+    // Hide previous results
+    const statusEl = document.getElementById("upload-did-status");
+    const resultEl = document.getElementById("upload-did-result");
+    if (statusEl) statusEl.style.display = "none";
+    if (resultEl) resultEl.style.display = "none";
+
+    const did = document.getElementById("upload-did-input").value.trim();
+    const nodeUrl = document.getElementById("portal-node-url").value.trim();
+    const pkgId = document.getElementById("portal-identity-pkg-id").value.trim();
+
+    try {
+      const body = { did };
+      if (nodeUrl) body.node_url = nodeUrl;
+      if (pkgId) body.identity_pkg_id = pkgId;
+      const res = await api("POST", "/dids/validate", body);
+      if (res.status === 200 && res.data.valid) {
+        showNotice("upload-did-status", "DID is valid. Access granted.", "success");
+        show("upload-did-result", res.data, false);
+      } else {
+        showNotice(
+          "upload-did-status",
+          res.data.message || "Invalid DID",
+          "error"
+        );
+        show("upload-did-result", res.data, true);
+      }
+    } catch (err) {
+      showNotice("upload-did-status", `Error: ${err.message}`, "error");
+    } finally {
+      setLoading("btn-upload-did", false);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -313,4 +419,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initLogin();
   initDashboard();
   initIdentity();
+  initPortal();
 });

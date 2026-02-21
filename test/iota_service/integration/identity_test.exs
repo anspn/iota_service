@@ -81,31 +81,8 @@ defmodule IotaService.Integration.IdentityTest do
     end
   end
 
-  describe "DID caching" do
-    test "caches DID on generation and retrieves it" do
-      {:ok, result} = IotaService.generate_did()
-
-      assert {:ok, cached} = IotaService.get_cached_did(result.did)
-      assert cached.did == result.did
-      assert cached.document == result.document
-    end
-
-    test "returns :miss for unknown DID" do
-      assert :miss = IotaService.get_cached_did("did:iota:0xunknown")
-    end
-
-    test "skips caching when cache: false" do
-      # Clear cache first to avoid hits from prior tests with the same DID
-      IotaService.Identity.Cache.clear()
-
-      {:ok, result} = IotaService.generate_did(cache: false)
-
-      assert :miss = IotaService.get_cached_did(result.did)
-    end
-  end
-
   describe "full DID lifecycle" do
-    test "generate → validate → create URL → cache lookup" do
+    test "generate → validate → create URL" do
       # Step 1: Generate
       assert {:ok, did_result} = IotaService.generate_did()
       did = did_result.did
@@ -116,11 +93,6 @@ defmodule IotaService.Integration.IdentityTest do
       # Step 3: Create DID URL
       assert {:ok, url} = IotaService.create_did_url(did, "key-1")
       assert url == "#{did}#key-1"
-
-      # Step 4: Retrieve from cache
-      assert {:ok, cached} = IotaService.get_cached_did(did)
-      assert cached.did == did
-      assert cached.network == :iota
     end
   end
 end

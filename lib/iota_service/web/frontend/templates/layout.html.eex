@@ -14,9 +14,7 @@
     <ul>
       <li><strong>🔷 IOTA Service</strong></li>
     </ul>
-    <ul>
-      <li><a href="/" class="<%= if assigns.active == :dashboard, do: "contrast", else: "" %>">Dashboard</a></li>
-      <li><a href="/identity" class="<%= if assigns.active == :identity, do: "contrast", else: "" %>">Identity</a></li>
+    <ul id="nav-links">
       <li id="nav-auth-item"></li>
     </ul>
   </nav>

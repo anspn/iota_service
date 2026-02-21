@@ -24,7 +24,8 @@ defmodule IotaService.Web.Plugs.Authenticate do
       conn
       |> assign(:current_user, %{
         id: claims["user_id"],
-        email: claims["email"]
+        email: claims["email"],
+        role: claims["role"] || "user"
       })
     else
       {:error, :no_token} ->

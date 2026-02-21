@@ -10,13 +10,17 @@
     <form id="login-form" onsubmit="return false;">
       <label>
         Email
-        <input type="email" id="login-email" value="dev@iota.local" required />
+        <input type="email" id="login-email" placeholder="you@example.com" required />
       </label>
       <label>
         Password
-        <input type="password" id="login-password" value="iota_dev_2026" required />
+        <input type="password" id="login-password" required />
       </label>
       <button type="submit" id="btn-login">Sign in</button>
+      <small>
+        Dev accounts: <code>admin@iota.local / iota_admin_2026</code> (admin) &middot;
+        <code>user@iota.local / iota_user_2026</code> (user)
+      </small>
     </form>
   </article>
 </section>

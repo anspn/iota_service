@@ -24,7 +24,7 @@ defmodule IotaService.Web.API.AuthHandler do
       Helpers.json(conn, 200, %{
         token: token,
         expires_at: format_exp(claims["exp"]),
-        user: %{id: user.id, email: user.email}
+        user: %{id: user.id, email: user.email, role: user.role}
       })
     else
       {:error, [:password]} ->

@@ -69,10 +69,6 @@ defmodule IotaService.Integration.LedgerIdentityTest do
 
       # The DID must be valid
       assert IotaService.valid_did?(result.did)
-
-      # It should be cached automatically
-      assert {:ok, cached} = IotaService.get_cached_did(result.did)
-      assert cached.did == result.did
     end
   end
 

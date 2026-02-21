@@ -8,7 +8,7 @@ defmodule IotaService.Web.API.IdentityHandler do
 
   - `POST   /api/dids`             — Create (generate or publish) a DID
   - `GET    /api/dids/:did`        — Resolve / look up a DID
-  - `POST   /api/dids/:did/revoke` — Revoke a DID
+  - `POST   /api/dids/:did/revoke` — Deactivate (revoke) a DID on-chain
   """
 
   use Plug.Router
@@ -20,6 +20,73 @@ defmodule IotaService.Web.API.IdentityHandler do
   plug Authenticate
   plug :match
   plug :dispatch
+
+  # ---------------------------------------------------------------------------
+  # POST /api/dids/validate — Validate a DID on-chain
+  # ---------------------------------------------------------------------------
+  post "/validate" do
+    params = conn.body_params || %{}
+    did = params["did"]
+
+    cond do
+      is_nil(did) || did == "" ->
+        Helpers.json(conn, 400, %{
+          error: "missing_parameter",
+          message: "Required parameter missing: did"
+        })
+
+      not IotaService.valid_did?(did) ->
+        Helpers.json(conn, 422, %{
+          valid: false,
+          did: did,
+          message: "Invalid DID format. Expected: did:iota:0x..."
+        })
+
+      true ->
+        # Resolve on-chain to validate
+        opts =
+          []
+          |> maybe_put(:node_url, params["node_url"])
+          |> maybe_put(:identity_pkg_id, params["identity_pkg_id"])
+          |> maybe_put(:node_url, Application.get_env(:iota_service, :node_url))
+          |> maybe_put(:identity_pkg_id, Application.get_env(:iota_service, :identity_pkg_id))
+
+        case IotaService.resolve_did(did, opts) do
+          {:ok, resolved} ->
+            doc_json = resolved["document"]
+
+            if did_deactivated?(doc_json) do
+              Helpers.json(conn, 200, %{
+                valid: false,
+                did: did,
+                message: "DID has been deactivated on-chain",
+                document: doc_json
+              })
+            else
+              Helpers.json(conn, 200, %{
+                valid: true,
+                did: did,
+                message: "DID resolved successfully on-chain",
+                document: doc_json
+              })
+            end
+
+          {:error, reason} when is_binary(reason) ->
+            Helpers.json(conn, 422, %{
+              valid: false,
+              did: did,
+              message: "DID could not be resolved on-chain: #{reason}"
+            })
+
+          {:error, reason} ->
+            Helpers.json(conn, 422, %{
+              valid: false,
+              did: did,
+              message: "DID could not be resolved on-chain: #{inspect(reason)}"
+            })
+        end
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # POST /api/dids — Create a new DID
@@ -73,7 +140,7 @@ defmodule IotaService.Web.API.IdentityHandler do
     unless IotaService.valid_did?(did) do
       Helpers.json(conn, 400, %{error: "invalid_request", message: "Invalid DID format"})
     else
-      case resolve_did(did, params) do
+      case resolve_from_ledger(did, params) do
         {:ok, response} ->
           Helpers.json(conn, 200, response)
 
@@ -90,30 +157,35 @@ defmodule IotaService.Web.API.IdentityHandler do
   end
 
   # ---------------------------------------------------------------------------
-  # POST /api/dids/:did/revoke — Revoke a DID
+  # POST /api/dids/:did/revoke — Deactivate (revoke) a DID on-chain
   # ---------------------------------------------------------------------------
   post "/:did/revoke" do
     did = URI.decode(did)
     params = conn.body_params || %{}
-    reason = params["reason"]
 
     unless IotaService.valid_did?(did) do
       Helpers.json(conn, 400, %{error: "invalid_request", message: "Invalid DID format"})
     else
-      case revoke_did(did, reason) do
+      case deactivate_did(did, params) do
         {:ok, response} ->
           Helpers.json(conn, 200, response)
 
-        {:error, :not_found} ->
-          Helpers.json(conn, 404, %{
-            error: "not_found",
-            message: "DID not found or does not belong to this user"
+        {:error, {:missing_option, key}} ->
+          Helpers.json(conn, 400, %{
+            error: "missing_parameter",
+            message: "Required parameter missing: #{key}"
           })
 
-        {:error, :already_revoked} ->
-          Helpers.json(conn, 409, %{
-            error: "already_revoked",
-            message: "This DID has already been revoked"
+        {:error, reason} when is_binary(reason) ->
+          Helpers.json(conn, 422, %{
+            error: "deactivation_failed",
+            message: reason
+          })
+
+        {:error, reason} ->
+          Helpers.json(conn, 500, %{
+            error: "internal_error",
+            message: "DID deactivation failed: #{inspect(reason)}"
           })
       end
     end
@@ -166,18 +238,6 @@ defmodule IotaService.Web.API.IdentityHandler do
     end
   end
 
-  defp resolve_did(did, params) do
-    # Try cache first, then ledger
-    case IotaService.get_cached_did(did) do
-      {:ok, cached} ->
-        status = Map.get(cached, :status, "active")
-        {:ok, format_did_response(cached, Map.get(cached, :label), status)}
-
-      :miss ->
-        resolve_from_ledger(did, params)
-    end
-  end
-
   defp resolve_from_ledger(did, params) do
     opts =
       []
@@ -201,26 +261,30 @@ defmodule IotaService.Web.API.IdentityHandler do
     end
   end
 
-  defp revoke_did(did, reason) do
-    case IotaService.get_cached_did(did) do
-      {:ok, cached} ->
-        if Map.get(cached, :status) == "revoked" do
-          {:error, :already_revoked}
-        else
-          # Mark as revoked in cache
-          revoked = Map.merge(cached, %{status: "revoked", revoked_at: DateTime.utc_now(), revoke_reason: reason})
-          IotaService.Identity.Cache.put(did, revoked)
+  defp deactivate_did(did, params) do
+    secret_key = params["secret_key"]
 
+    unless secret_key && secret_key != "" do
+      {:error, {:missing_option, :secret_key}}
+    else
+      opts =
+        [secret_key: secret_key]
+        |> maybe_put(:node_url, params["node_url"])
+        |> maybe_put(:identity_pkg_id, params["identity_pkg_id"])
+        |> maybe_put(:node_url, Application.get_env(:iota_service, :node_url))
+        |> maybe_put(:identity_pkg_id, Application.get_env(:iota_service, :identity_pkg_id))
+
+      case IotaService.deactivate_did(did, opts) do
+        {:ok, _} ->
           {:ok, %{
             did: did,
-            status: "revoked",
-            revoked_at: DateTime.to_iso8601(revoked.revoked_at),
-            reason: reason
+            status: "deactivated",
+            message: "DID has been permanently deactivated on-chain"
           }}
-        end
 
-      :miss ->
-        {:error, :not_found}
+        error ->
+          error
+      end
     end
   end
 
@@ -249,7 +313,21 @@ defmodule IotaService.Web.API.IdentityHandler do
     end
   end
 
+  # Check whether a resolved DID document has been deactivated on-chain.
+  # The document JSON has the shape: {"doc": {...}, "meta": {"deactivated": true, ...}}
+  defp did_deactivated?(doc_json) when is_binary(doc_json) do
+    case Jason.decode(doc_json) do
+      {:ok, %{"meta" => %{"deactivated" => true}}} -> true
+      _ -> false
+    end
+  end
+
+  defp did_deactivated?(_), do: false
+
   defp maybe_put(opts, _key, nil), do: opts
   defp maybe_put(opts, _key, ""), do: opts
-  defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
+
+  defp maybe_put(opts, key, value) do
+    if Keyword.has_key?(opts, key), do: opts, else: Keyword.put(opts, key, value)
+  end
 end

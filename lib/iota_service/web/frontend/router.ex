@@ -44,6 +44,17 @@ defmodule IotaService.Web.Frontend.Router do
     |> send_resp(200, html)
   end
 
+  # --- User Portal --------------------------------------------------------
+  get "/portal" do
+    html = Templates.render(:portal, %{
+      login_required: login_required?()
+    })
+
+    conn
+    |> put_resp_content_type("text/html")
+    |> send_resp(200, html)
+  end
+
   # --- Identity -----------------------------------------------------------
   get "/identity" do
     html = Templates.render(:identity, %{

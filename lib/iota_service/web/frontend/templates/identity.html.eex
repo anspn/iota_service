@@ -86,10 +86,11 @@
     <pre id="resolve-did-result" class="result-box" style="display:none;"></pre>
   </article>
 
-  <!-- Revoke DID ------------------------------------------------------------>
+  <!-- Deactivate DID -------------------------------------------------------->
   <article>
     <header>
-      <h3>Revoke DID</h3>
+      <h3>Deactivate DID</h3>
+      <small>Permanently deactivate a DID on-chain. This action is <strong>irreversible</strong>.</small>
     </header>
     <form id="revoke-did-form" onsubmit="return false;">
       <div class="grid">
@@ -99,11 +100,22 @@
                  placeholder="did:iota:0x..." />
         </label>
         <label>
-          Reason (optional)
-          <input type="text" id="revoke-reason" placeholder="Key compromised" />
+          Secret Key
+          <input type="password" id="revoke-secret-key"
+                 placeholder="iotaprivkey1... or base64" required />
         </label>
       </div>
-      <button type="submit" id="btn-revoke-did" class="outline secondary">Revoke</button>
+      <div class="grid">
+        <label>
+          Node URL <small>(optional)</small>
+          <input type="url" id="revoke-node-url" placeholder="http://127.0.0.1:9000" />
+        </label>
+        <label>
+          Identity Package ID <small>(optional)</small>
+          <input type="text" id="revoke-identity-pkg-id" placeholder="0x..." />
+        </label>
+      </div>
+      <button type="submit" id="btn-revoke-did" class="outline secondary">Deactivate</button>
     </form>
     <pre id="revoke-did-result" class="result-box" style="display:none;"></pre>
   </article>

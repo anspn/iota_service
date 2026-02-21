@@ -14,13 +14,12 @@ defmodule IotaService.Identity.Server do
   ## Ledger operations (require IOTA node)
   - `publish_did/1` — Create and publish a DID on-chain
   - `resolve_did/2` — Resolve a published DID from the ledger
+  - `deactivate_did/2` — Permanently deactivate (revoke) a DID on-chain
   """
 
   use GenServer
 
   require Logger
-
-  alias IotaService.Identity.Cache
 
   @default_network :iota
   @nif_module :iota_did_nif
@@ -45,7 +44,6 @@ defmodule IotaService.Identity.Server do
   - `:node_url` - URL of the IOTA node (default: from app config)
   - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto-discovery)
   - `:gas_coin_id` - Specific gas coin ObjectID (default: "" for auto-selection)
-  - `:cache` - Whether to cache the result (default: true)
   - `:timeout` - GenServer call timeout in ms (default: 60_000)
   """
   @spec publish_did(keyword()) :: {:ok, map()} | {:error, term()}
@@ -83,6 +81,24 @@ defmodule IotaService.Identity.Server do
     GenServer.call(__MODULE__, {:create_did_url, did, fragment})
   end
 
+  @doc """
+  Permanently deactivate (revoke) a DID on the IOTA Rebased ledger.
+
+  **Warning**: This operation is irreversible. Once deactivated, the DID
+  cannot be reactivated.
+
+  ## Options
+  - `:secret_key` - (required) Ed25519 private key of a DID controller
+  - `:node_url` - URL of the IOTA node (default: from app config)
+  - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto-discovery)
+  - `:timeout` - GenServer call timeout in ms (default: 60_000)
+  """
+  @spec deactivate_did(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def deactivate_did(did, opts) when is_binary(did) do
+    timeout = Keyword.get(opts, :timeout, 60_000)
+    GenServer.call(__MODULE__, {:deactivate_did, did, opts}, timeout)
+  end
+
   # Server Callbacks
 
   @impl true
@@ -102,7 +118,6 @@ defmodule IotaService.Identity.Server do
   @impl true
   def handle_call({:generate_did, opts}, _from, state) do
     network = Keyword.get(opts, :network, @default_network)
-    cache? = Keyword.get(opts, :cache, true)
 
     start_time = System.monotonic_time()
 
@@ -117,8 +132,6 @@ defmodule IotaService.Identity.Server do
           network: network,
           generated_at: DateTime.utc_now()
         }
-
-        if cache?, do: Cache.put(did_result.did, did_result)
 
         emit_telemetry(:generate_did, start_time, %{network: network, success: true})
         {:ok, did_result}
@@ -144,7 +157,6 @@ defmodule IotaService.Identity.Server do
   @impl true
   def handle_call({:publish_did, opts}, _from, state) do
     start_time = System.monotonic_time()
-    cache? = Keyword.get(opts, :cache, true)
 
     result =
       with {:ok, secret_key} <- require_opt(opts, :secret_key),
@@ -161,8 +173,6 @@ defmodule IotaService.Identity.Server do
           sender_address: parsed["sender_address"],
           published_at: DateTime.utc_now()
         }
-
-        if cache?, do: Cache.put(did_result.did, did_result)
 
         emit_telemetry(:publish_did, start_time, %{success: true})
         {:ok, did_result}
@@ -201,6 +211,29 @@ defmodule IotaService.Identity.Server do
           emit_telemetry(:resolve_did, start_time, %{success: false})
           Logger.warning("DID resolution failed: #{inspect(reason)}")
           error
+      end
+
+    {:reply, result, state}
+  end
+
+  @impl true
+  def handle_call({:deactivate_did, did, opts}, _from, state) do
+    start_time = System.monotonic_time()
+
+    result =
+      with {:ok, secret_key} <- require_opt(opts, :secret_key),
+           node_url <- ledger_opt(opts, :node_url),
+           identity_pkg_id <- ledger_opt(opts, :identity_pkg_id, "") do
+        case call_nif(:deactivate_did, [secret_key, did, node_url, identity_pkg_id]) do
+          {:ok, _} ->
+            emit_telemetry(:deactivate_did, start_time, %{success: true})
+            {:ok, "deactivated"}
+
+          {:error, reason} = error ->
+            emit_telemetry(:deactivate_did, start_time, %{success: false})
+            Logger.warning("DID deactivation failed: #{inspect(reason)}")
+            error
+        end
       end
 
     {:reply, result, state}

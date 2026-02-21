@@ -20,7 +20,8 @@ config :iota_service, IotaService.Web.Auth,
   secret: "dev-secret-please-change-in-production",
   token_ttl_seconds: 3600,
   users: [
-    %{id: "usr_dev", email: "dev@iota.local", password: "iota_dev_2026"}
+    %{id: "usr_admin", email: "admin@iota.local", password: "iota_admin_2026", role: "admin"},
+    %{id: "usr_user", email: "user@iota.local", password: "iota_user_2026", role: "user"}
   ]
 
 # Joken default signer (not used — we configure our own in Web.Auth)

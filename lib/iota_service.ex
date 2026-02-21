@@ -93,12 +93,6 @@ defmodule IotaService do
   @spec create_did_url(String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   defdelegate create_did_url(did, fragment), to: Identity.Server
 
-  @doc """
-  Get a cached DID document.
-  """
-  @spec get_cached_did(String.t()) :: {:ok, map()} | :miss
-  defdelegate get_cached_did(did), to: Identity.Cache, as: :get
-
   # ============================================================================
   # Identity API — Ledger Operations
   # ============================================================================
@@ -127,6 +121,20 @@ defmodule IotaService do
   """
   @spec resolve_did(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   defdelegate resolve_did(did, opts \\ []), to: Identity.Server
+
+  @doc """
+  Permanently deactivate (revoke) a DID on the IOTA Rebased ledger.
+
+  **Warning**: This operation is irreversible. Once deactivated, the DID
+  cannot be reactivated.
+
+  ## Options
+  - `:secret_key` - (required) Ed25519 private key of a DID controller
+  - `:node_url` - URL of the IOTA node (default: from app config)
+  - `:identity_pkg_id` - ObjectID of the identity Move package (default: from app config, or "" for auto)
+  """
+  @spec deactivate_did(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  defdelegate deactivate_did(did, opts), to: Identity.Server
 
   # ============================================================================
   # Notarization API — Local Operations

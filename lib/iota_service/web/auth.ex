@@ -35,7 +35,7 @@ defmodule IotaService.Web.Auth do
     |> Enum.find(fn u -> u.email == email and u.password == password end)
     |> case do
       nil -> {:error, :invalid_credentials}
-      user -> {:ok, Map.take(user, [:id, :email])}
+      user -> {:ok, Map.take(user, [:id, :email, :role])}
     end
   end
 
@@ -45,8 +45,8 @@ defmodule IotaService.Web.Auth do
   Returns `{:ok, token, claims}`.
   """
   @spec generate_token(map()) :: {:ok, String.t(), map()} | {:error, term()}
-  def generate_token(%{id: user_id, email: email}) do
-    extra_claims = %{"user_id" => user_id, "email" => email}
+  def generate_token(%{id: user_id, email: email, role: role}) do
+    extra_claims = %{"user_id" => user_id, "email" => email, "role" => to_string(role)}
 
     case generate_and_sign(extra_claims, signer()) do
       {:ok, token, claims} -> {:ok, token, claims}
