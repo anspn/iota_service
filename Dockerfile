@@ -69,7 +69,8 @@ RUN apt-get update -y && \
       openssl \
       libncurses5 \
       locales \
-      ca-certificates && \
+      ca-certificates \
+      curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Set locale

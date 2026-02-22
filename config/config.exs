@@ -13,7 +13,9 @@ config :iota_service,
   port: 4000,
   start_web: true,
   # Set to true to require login before accessing the app
-  login_required: true
+  login_required: true,
+  # ttyd URL for portal terminal (user-facing URL the browser connects to)
+  ttyd_url: "http://localhost:7681"
 
 # JWT Authentication
 config :iota_service, IotaService.Web.Auth,

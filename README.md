@@ -9,6 +9,8 @@ management and data notarization.
 - **Notarization**: Timestamp and hash-anchor data for Tangle submission
 - **Supervised Architecture**: Fault-tolerant supervision tree
 - **NIF Integration**: Uses Rust NIFs for cryptographic operations
+- **Web Portal**: User portal with DID-gated terminal access via ttyd
+- **Docker Ready**: Multi-stage Dockerfile + Docker Compose with ttyd terminal service
 
 
 ## Quick Start
@@ -88,6 +90,32 @@ IotaService.queue_stats()
 ## Configuration
 
 Configure via `config/config.exs`
+
+## Docker
+
+```bash
+# 1. Copy the env example and fill in secrets
+cp .env.example .env
+
+# 2. Build and start (app + ttyd terminal)
+docker compose up -d --build
+
+# 3. Open http://localhost:4000 (app) or http://localhost:7681 (ttyd directly)
+```
+
+### Services
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| `app` | 4000 | IOTA Service (Elixir) |
+| `ttyd` | 7681 | Web-based terminal — embedded in portal after DID validation |
+
+### Required Environment Variables
+
+- `SECRET_KEY_BASE` — JWT signing secret (`openssl rand -base64 64`)
+- `ADMIN_PASSWORD` — Admin user password
+
+See [.env.example](.env.example) for the full list.
 
 ## Testing
 

@@ -1,11 +1,10 @@
-<% _ = assigns %>
 <section>
   <hgroup>
     <h1>User Portal</h1>
     <p>Upload your DID to access IOTA Service features</p>
   </hgroup>
 
-  <article>
+  <article id="did-validation-card">
     <header>
       <h3>Upload DID</h3>
     </header>
@@ -20,8 +19,7 @@
         <label>
           Node URL
           <input type="url" id="portal-node-url"
-                 value="http://127.0.0.1:9000"
-                 placeholder="http://127.0.0.1:9000" />
+                 placeholder="Leave empty to use server default" />
         </label>
         <label>
           Identity Package ID
@@ -35,4 +33,24 @@
     <div id="upload-did-status" class="notice" style="display:none;"></div>
     <pre id="upload-did-result" class="result-box" style="display:none;"></pre>
   </article>
+
+  <!-- Terminal: shown after successful DID validation -->
+  <article id="terminal-card" style="display:none;">
+    <header>
+      <div class="terminal-header">
+        <h3>Terminal</h3>
+        <span id="terminal-did-badge" class="did-badge"></span>
+        <button id="btn-disconnect-terminal" class="outline secondary terminal-disconnect">Disconnect</button>
+      </div>
+    </header>
+    <div id="terminal-container">
+      <iframe id="terminal-iframe"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              allow="clipboard-read; clipboard-write"
+              title="Terminal"></iframe>
+    </div>
+  </article>
 </section>
+
+<!-- Server-injected ttyd URL for JS -->
+<script>window.__TTYD_URL__ = "<%= assigns.ttyd_url %>";</script>

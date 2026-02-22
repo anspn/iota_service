@@ -47,7 +47,8 @@ defmodule IotaService.Web.Frontend.Router do
   # --- User Portal --------------------------------------------------------
   get "/portal" do
     html = Templates.render(:portal, %{
-      login_required: login_required?()
+      login_required: login_required?(),
+      ttyd_url: Application.get_env(:iota_service, :ttyd_url, "http://localhost:7681")
     })
 
     conn

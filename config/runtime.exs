@@ -2,19 +2,35 @@ import Config
 
 # Runtime configuration — loaded at application startup (not compile time).
 # This is the right place to read environment variables for Docker/production.
+#
+# All optional env vars fall back to sensible defaults below.
+# Docker Compose passes vars via env_file (.env); only SECRET_KEY_BASE,
+# ADMIN_PASSWORD, and IOTA_NODE_URL are explicitly set in docker-compose.yml.
 
 if config_env() == :prod do
+  # Helper: treat "" the same as nil so empty Docker env vars don't
+  # override defaults (env_file passes commented-out vars as "").
+  env = fn key, default ->
+    case System.get_env(key) do
+      nil -> default
+      "" -> default
+      val -> val
+    end
+  end
+
   # --- IOTA Node ---
   config :iota_service,
-    node_url: System.get_env("IOTA_NODE_URL") || "http://127.0.0.1:9000",
-    faucet_url: System.get_env("IOTA_FAUCET_URL") || "https://faucet.testnet.iota.cafe/gas",
-    identity_pkg_id: System.get_env("IOTA_IDENTITY_PKG_ID") || "",
-    notarize_pkg_id: System.get_env("IOTA_NOTARIZE_PKG_ID") || ""
+    node_url: env.("IOTA_NODE_URL", "http://127.0.0.1:9000"),
+    faucet_url: env.("IOTA_FAUCET_URL", "https://faucet.testnet.iota.cafe/gas"),
+    identity_pkg_id: env.("IOTA_IDENTITY_PKG_ID", ""),
+    notarize_pkg_id: env.("IOTA_NOTARIZE_PKG_ID", ""),
+    ttyd_url: env.("TTYD_URL", "http://localhost:7681")
 
   # --- Web server ---
   port =
     case System.get_env("PORT") do
       nil -> 4000
+      "" -> 4000
       val -> String.to_integer(val)
     end
 
@@ -28,18 +44,37 @@ if config_env() == :prod do
       Generate one with: mix phx.gen.secret (or openssl rand -base64 64)
       """
 
+  admin_password =
+    case System.get_env("ADMIN_PASSWORD") do
+      nil -> raise("Environment variable ADMIN_PASSWORD is missing.")
+      "" -> raise("Environment variable ADMIN_PASSWORD is missing.")
+      pw -> pw
+    end
+
+  user_password = env.("USER_PASSWORD", nil)
+
   config :iota_service, IotaService.Web.Auth,
     secret: secret,
     token_ttl_seconds:
-      String.to_integer(System.get_env("TOKEN_TTL_SECONDS") || "3600"),
-    users: [
-      %{
-        id: System.get_env("ADMIN_USER_ID") || "usr_admin",
-        email: System.get_env("ADMIN_EMAIL") || "admin@iota.local",
-        password:
-          System.get_env("ADMIN_PASSWORD") ||
-            raise("Environment variable ADMIN_PASSWORD is missing."),
-        role: "admin"
-      }
-    ]
+      String.to_integer(env.("TOKEN_TTL_SECONDS", "3600")),
+    users:
+      [
+        %{
+          id: env.("ADMIN_USER_ID", "usr_admin"),
+          email: env.("ADMIN_EMAIL", "admin@iota.local"),
+          password: admin_password,
+          role: "admin"
+        }
+      ] ++
+        if(user_password,
+          do: [
+            %{
+              id: env.("USER_USER_ID", "usr_user"),
+              email: env.("USER_EMAIL", "user@iota.local"),
+              password: user_password,
+              role: "user"
+            }
+          ],
+          else: []
+        )
 end

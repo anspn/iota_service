@@ -374,6 +374,46 @@ function initPortal() {
   // User-only page
   if (requireRole("user")) return;
 
+  // Terminal elements
+  const terminalCard = document.getElementById("terminal-card");
+  const terminalIframe = document.getElementById("terminal-iframe");
+  const terminalBadge = document.getElementById("terminal-did-badge");
+  const validationCard = document.getElementById("did-validation-card");
+  const disconnectBtn = document.getElementById("btn-disconnect-terminal");
+
+  /**
+   * Show the terminal iframe, hiding the validation form.
+   * @param {string} did — The validated DID to display as a badge
+   */
+  function showTerminal(did) {
+    const ttydUrl = window.__TTYD_URL__ || "http://localhost:7681";
+    terminalIframe.src = ttydUrl;
+    terminalBadge.textContent = did;
+    validationCard.style.display = "none";
+    terminalCard.style.display = "block";
+    // Store in session so page refreshes re-open the terminal
+    sessionStorage.setItem("iota_portal_did", did);
+  }
+
+  /** Hide the terminal, return to the validation form. */
+  function hideTerminal() {
+    terminalIframe.src = "about:blank";
+    terminalCard.style.display = "none";
+    validationCard.style.display = "block";
+    sessionStorage.removeItem("iota_portal_did");
+  }
+
+  // Disconnect button
+  if (disconnectBtn) {
+    disconnectBtn.addEventListener("click", hideTerminal);
+  }
+
+  // If user previously validated a DID in this session, restore the terminal
+  const savedDid = sessionStorage.getItem("iota_portal_did");
+  if (savedDid) {
+    showTerminal(savedDid);
+  }
+
   form.addEventListener("submit", async () => {
     setLoading("btn-upload-did", true);
     // Hide previous results
@@ -392,8 +432,8 @@ function initPortal() {
       if (pkgId) body.identity_pkg_id = pkgId;
       const res = await api("POST", "/dids/validate", body);
       if (res.status === 200 && res.data.valid) {
-        showNotice("upload-did-status", "DID is valid. Access granted.", "success");
-        show("upload-did-result", res.data, false);
+        // DID is valid — show the terminal instead of a success message
+        showTerminal(did);
       } else {
         showNotice(
           "upload-did-status",

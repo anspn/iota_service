@@ -12,23 +12,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
     container_name: iota_service
     ports:
       - "${PORT:-4000}:4000"
+    env_file: .env
     environment:
-      # --- Required ---
+      # Required vars validated at compose-up time
       SECRET_KEY_BASE: "${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}"
-      # --- Optional (defaults shown) ---
-      PORT: "4000"
+      # Docker-specific default: inside the container 127.0.0.1 ≠ the host
       IOTA_NODE_URL: "${IOTA_NODE_URL:-http://host.docker.internal:9000}"
-      IOTA_FAUCET_URL: "${IOTA_FAUCET_URL:-https://faucet.testnet.iota.cafe/gas}"
-      IOTA_IDENTITY_PKG_ID: "${IOTA_IDENTITY_PKG_ID:-}"
-      IOTA_NOTARIZE_PKG_ID: "${IOTA_NOTARIZE_PKG_ID:-}"
-      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@iota.local}"
-      ADMIN_USER_ID: "${ADMIN_USER_ID:-usr_admin}"
-      TOKEN_TTL_SECONDS: "${TOKEN_TTL_SECONDS:-3600}"
     restart: unless-stopped
+    depends_on:
+      ttyd:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
       interval: 30s
@@ -38,3 +36,18 @@ services:
     # Add extra_hosts so host.docker.internal resolves on Linux
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # ttyd — Web-based terminal accessible from the User Portal
+  # ---------------------------------------------------------------------------
+  ttyd:
+    image: tsl0922/ttyd:latest
+    container_name: iota_ttyd
+    command: >
+      ttyd
+        --writable
+        --port 7681
+        bash
+    ports:
+      - "${TTYD_PORT:-7681}:7681"
+    restart: unless-stopped

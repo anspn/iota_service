@@ -27,8 +27,7 @@
           <label>
             Node URL
             <input type="url" id="did-node-url"
-                   value="http://127.0.0.1:9000"
-                   placeholder="http://127.0.0.1:9000" required />
+                   placeholder="Leave empty to use server default" />
           </label>
           <label>
             Identity Package ID
@@ -73,7 +72,7 @@
         <label>
           Node URL
           <input type="url" id="resolve-node-url"
-                 value="http://127.0.0.1:9000" />
+                 placeholder="Leave empty to use server default" />
         </label>
         <label>
           Identity Package ID
@@ -108,7 +107,7 @@
       <div class="grid">
         <label>
           Node URL <small>(optional)</small>
-          <input type="url" id="revoke-node-url" placeholder="http://127.0.0.1:9000" />
+          <input type="url" id="revoke-node-url" placeholder="Leave empty to use server default" />
         </label>
         <label>
           Identity Package ID <small>(optional)</small>
