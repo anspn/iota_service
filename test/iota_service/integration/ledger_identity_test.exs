@@ -1,37 +1,38 @@
 defmodule IotaService.Integration.LedgerIdentityTest do
   @moduledoc """
   End-to-end integration tests for DID publishing and resolution
-  against a local IOTA Rebased node.
+  against the IOTA Rebased testnet (or a local node via IOTA_NODE_URL override).
 
   Requires:
-  - A running local IOTA node (default: http://127.0.0.1:9000)
   - Environment variables:
     - `IOTA_TEST_SECRET_KEY` — Bech32 or Base64 Ed25519 private key with gas
     - `IOTA_IDENTITY_PKG_ID` — ObjectID of the `iota_identity` Move package
+      (optional on testnet — auto-discovery is used when set to "")
+  - Optionally: `IOTA_TEST_NODE_URL` to override the default testnet URL
 
   Run with:
 
       IOTA_TEST_SECRET_KEY=iotaprivkey1... \\
-      IOTA_IDENTITY_PKG_ID=0x... \\
-      MIX_ENV=local mix test test/iota_service/integration/ledger_identity_test.exs
+      IOTA_TESTNET=1 mix test test/iota_service/integration/ledger_identity_test.exs
   """
 
   use ExUnit.Case, async: false
 
-  @moduletag :ledger
+  @moduletag :testnet
 
   setup_all do
     secret_key = System.get_env("IOTA_TEST_SECRET_KEY")
-    identity_pkg_id = System.get_env("IOTA_IDENTITY_PKG_ID")
+    identity_pkg_id = System.get_env("IOTA_IDENTITY_PKG_ID", "")
 
-    if is_nil(secret_key) or is_nil(identity_pkg_id) do
+    if is_nil(secret_key) do
       IO.puts("""
       \n  Skipping ledger identity tests:
-        IOTA_TEST_SECRET_KEY and IOTA_IDENTITY_PKG_ID must be set.
+        IOTA_TEST_SECRET_KEY must be set.
+        IOTA_IDENTITY_PKG_ID is optional ("" enables auto-discovery on testnet).
       """)
     end
 
-    node_url = System.get_env("IOTA_TEST_NODE_URL", "http://127.0.0.1:9000")
+    node_url = System.get_env("IOTA_TEST_NODE_URL", "https://api.testnet.iota.cafe")
 
     {:ok,
      secret_key: secret_key,
@@ -39,8 +40,8 @@ defmodule IotaService.Integration.LedgerIdentityTest do
      node_url: node_url}
   end
 
-  setup %{secret_key: sk, identity_pkg_id: pkg} do
-    if is_nil(sk) or is_nil(pkg) do
+  setup %{secret_key: sk} do
+    if is_nil(sk) do
       {:ok, skip: true}
     else
       :ok
@@ -49,8 +50,8 @@ defmodule IotaService.Integration.LedgerIdentityTest do
 
   describe "publish DID on ledger" do
     @tag timeout: 120_000
-    test "publishes a new DID on the local IOTA node", ctx do
-      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY / IOTA_IDENTITY_PKG_ID not set")
+    test "publishes a new DID on the IOTA testnet", ctx do
+      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY not set")
 
       assert {:ok, result} =
                IotaService.publish_did(
@@ -75,7 +76,7 @@ defmodule IotaService.Integration.LedgerIdentityTest do
   describe "publish and resolve DID lifecycle" do
     @tag timeout: 120_000
     test "publishes then resolves the same DID from ledger", ctx do
-      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY / IOTA_IDENTITY_PKG_ID not set")
+      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY not set")
 
       # Step 1: Publish
       assert {:ok, published} =
@@ -102,7 +103,7 @@ defmodule IotaService.Integration.LedgerIdentityTest do
 
     @tag timeout: 120_000
     test "publishes DID and creates a DID URL with the verification fragment", ctx do
-      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY / IOTA_IDENTITY_PKG_ID not set")
+      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY not set")
 
       assert {:ok, published} =
                IotaService.publish_did(
@@ -123,13 +124,13 @@ defmodule IotaService.Integration.LedgerIdentityTest do
     test "returns error with missing secret_key" do
       assert {:error, {:missing_option, :secret_key}} =
                IotaService.publish_did(
-                 node_url: "http://127.0.0.1:9000",
+                 node_url: "https://api.testnet.iota.cafe",
                  identity_pkg_id: "0xdummy"
                )
     end
 
     test "returns error for resolve of non-existent DID", ctx do
-      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY / IOTA_IDENTITY_PKG_ID not set")
+      if ctx[:skip], do: flunk("IOTA_TEST_SECRET_KEY not set")
 
       fake_did = "did:iota:88ccb5ca:0x0000000000000000000000000000000000000000000000000000000000000000"
 

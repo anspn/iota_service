@@ -119,15 +119,20 @@ See [.env.example](.env.example) for the full list.
 
 ## Testing
 
-Test against local node with:
+Test against the IOTA testnet with:
 
 ```bash
-# Unit tests only (no node needed)
+# Unit tests only (no node/NIF needed)
 mix test
 
-# All local + ledger tests
+# Integration tests (requires NIF, uses testnet by default)
+IOTA_TESTNET=1 mix test
+
+# Ledger tests (requires funded secret key)
 IOTA_TEST_SECRET_KEY=iotaprivkey1... \
-IOTA_IDENTITY_PKG_ID=0xa1fb... \
+IOTA_TESTNET=1 mix test test/iota_service/integration/ledger_identity_test.exs
+
+# Against a local node
 MIX_ENV=local mix test
 ```
 

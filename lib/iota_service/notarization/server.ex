@@ -335,7 +335,7 @@ defmodule IotaService.Notarization.Server do
   defp ledger_opt(opts, key) do
     Keyword.get_lazy(opts, key, fn ->
       case key do
-        :node_url -> Application.get_env(:iota_service, :node_url, "http://127.0.0.1:9000")
+        :node_url -> Application.get_env(:iota_service, :node_url, "https://api.testnet.iota.cafe")
         :notarize_pkg_id -> Application.get_env(:iota_service, :notarize_pkg_id, "")
       end
     end)

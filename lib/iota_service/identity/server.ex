@@ -281,7 +281,7 @@ defmodule IotaService.Identity.Server do
   defp ledger_opt(opts, key, default \\ nil) do
     Keyword.get_lazy(opts, key, fn ->
       case key do
-        :node_url -> Application.get_env(:iota_service, :node_url, default || "http://127.0.0.1:9000")
+        :node_url -> Application.get_env(:iota_service, :node_url, default || "https://api.testnet.iota.cafe")
         :identity_pkg_id -> Application.get_env(:iota_service, :identity_pkg_id, default || "")
       end
     end)

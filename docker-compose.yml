@@ -21,8 +21,8 @@ services:
       # Required vars validated at compose-up time
       SECRET_KEY_BASE: "${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}"
-      # Docker-specific default: inside the container 127.0.0.1 ≠ the host
-      IOTA_NODE_URL: "${IOTA_NODE_URL:-http://host.docker.internal:9000}"
+      # Default: IOTA testnet (override with IOTA_NODE_URL in .env for local node)
+      IOTA_NODE_URL: "${IOTA_NODE_URL:-https://api.testnet.iota.cafe}"
     restart: unless-stopped
     depends_on:
       ttyd:
@@ -33,9 +33,6 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    # Add extra_hosts so host.docker.internal resolves on Linux
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   # ---------------------------------------------------------------------------
   # ttyd — Web-based terminal accessible from the User Portal

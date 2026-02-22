@@ -4,8 +4,8 @@ import Config
 # This is the right place to read environment variables for Docker/production.
 #
 # All optional env vars fall back to sensible defaults below.
-# Docker Compose passes vars via env_file (.env); only SECRET_KEY_BASE,
-# ADMIN_PASSWORD, and IOTA_NODE_URL are explicitly set in docker-compose.yml.
+# Docker Compose passes vars via env_file (.env); SECRET_KEY_BASE and
+# ADMIN_PASSWORD are explicitly required in docker-compose.yml.
 
 if config_env() == :prod do
   # Helper: treat "" the same as nil so empty Docker env vars don't
@@ -18,9 +18,9 @@ if config_env() == :prod do
     end
   end
 
-  # --- IOTA Node ---
+  # --- IOTA Node (defaults to testnet) ---
   config :iota_service,
-    node_url: env.("IOTA_NODE_URL", "http://127.0.0.1:9000"),
+    node_url: env.("IOTA_NODE_URL", "https://api.testnet.iota.cafe"),
     faucet_url: env.("IOTA_FAUCET_URL", "https://faucet.testnet.iota.cafe/gas"),
     identity_pkg_id: env.("IOTA_IDENTITY_PKG_ID", ""),
     notarize_pkg_id: env.("IOTA_NOTARIZE_PKG_ID", ""),

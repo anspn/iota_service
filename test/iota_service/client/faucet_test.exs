@@ -1,7 +1,7 @@
 defmodule IotaService.Client.FaucetTest do
   use ExUnit.Case
 
-  @moduletag :local
+  @moduletag :testnet
 
   test "requests gas tokens successfully" do
     address_file = Application.fetch_env!(:iota_service, :faucet_address_file)

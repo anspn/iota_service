@@ -1,13 +1,16 @@
 defmodule IotaService.Integration.IdentityTest do
   @moduledoc """
-  Integration tests for the Identity (DID) lifecycle against a local IOTA node.
+  Integration tests for the Identity (DID) lifecycle.
+  These tests require the NIF to be loaded (either via local node or testnet).
 
-  Run with: MIX_ENV=local mix test test/iota_service/integration/identity_test.exs
+  Run with:
+
+      IOTA_TESTNET=1 mix test test/iota_service/integration/identity_test.exs
   """
 
   use ExUnit.Case
 
-  @moduletag :local
+  @moduletag :testnet
 
   describe "DID generation" do
     test "generates a DID with default network (iota)" do

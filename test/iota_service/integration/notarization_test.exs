@@ -1,13 +1,16 @@
 defmodule IotaService.Integration.NotarizationTest do
   @moduledoc """
-  Integration tests for the Notarization lifecycle against a local IOTA node.
+  Integration tests for the Notarization lifecycle.
+  These tests require the NIF to be loaded (either via local node or testnet).
 
-  Run with: MIX_ENV=local mix test test/iota_service/integration/notarization_test.exs
+  Run with:
+
+      IOTA_TESTNET=1 mix test test/iota_service/integration/notarization_test.exs
   """
 
   use ExUnit.Case
 
-  @moduletag :local
+  @moduletag :testnet
 
   describe "hashing" do
     test "produces consistent SHA-256 hashes" do
