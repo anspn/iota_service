@@ -136,6 +136,12 @@ IOTA_TESTNET=1 mix test test/iota_service/integration/ledger_identity_test.exs
 MIX_ENV=local mix test
 ```
 
+## TODO
+
+- **lib/iota_service/session/manager.ex** (L602) — Change the priv_dir location storage to a database or more robust storage solution
+- **lib/iota_service/web/auth.ex** (L80) — Modify token verification behaviour to handle expiration of tokens
+
+
 ## License
 
 MIT
