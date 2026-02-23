@@ -31,6 +31,10 @@ defmodule IotaService.Web.Frontend.Templates do
     :assigns
   ])
 
+  EEx.function_from_file(:defp, :sessions_html, Path.join(@template_dir, "sessions.html.eex"), [
+    :assigns
+  ])
+
   @doc "Render a named template wrapped in the layout."
   @spec render(atom(), map()) :: String.t()
   def render(template, assigns \\ %{}) do
@@ -57,10 +61,12 @@ defmodule IotaService.Web.Frontend.Templates do
   defp render_inner(:identity, assigns), do: identity_html(assigns)
   defp render_inner(:login, assigns), do: login_html(assigns)
   defp render_inner(:portal, assigns), do: portal_html(assigns)
+  defp render_inner(:sessions, assigns), do: sessions_html(assigns)
 
   defp page_title(:dashboard), do: "Dashboard — IOTA Service"
   defp page_title(:identity), do: "Identity — IOTA Service"
   defp page_title(:login), do: "Login — IOTA Service"
   defp page_title(:portal), do: "Portal — IOTA Service"
+  defp page_title(:sessions), do: "Sessions — IOTA Service"
   defp page_title(_), do: "IOTA Service"
 end

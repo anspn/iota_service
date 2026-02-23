@@ -87,6 +87,9 @@ RUN groupadd --system iota && useradd --system --gid iota iota
 # Copy the release from the build stage
 COPY --from=build --chown=iota:iota /app/_build/prod/rel/iota_service ./
 
+# Create sessions directory (shared volume mount point)
+RUN mkdir -p /data/sessions/pending && chown -R iota:iota /data/sessions
+
 USER iota
 
 # Default port (matches config)

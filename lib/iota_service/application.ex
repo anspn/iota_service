@@ -13,6 +13,8 @@ defmodule IotaService.Application do
   ├── IotaService.Notarization.Supervisor  # Notarization services (one_for_one)
   │   ├── IotaService.Notarization.Server  # GenServer for notarization ops
   │   └── IotaService.Notarization.Queue   # Pending notarization queue
+  ├── IotaService.Session.Supervisor   # TTY session services (one_for_one)
+  │   └── IotaService.Session.Manager  # Session recording & notarization
   └── Bandit (HTTP server)             # Serves REST API + frontend
       └── IotaService.Web.Router       # Plug router
   ```
@@ -44,7 +46,10 @@ defmodule IotaService.Application do
         {IotaService.Identity.Supervisor, []},
 
         # 3. Notarization Domain Supervisor
-        {IotaService.Notarization.Supervisor, []}
+        {IotaService.Notarization.Supervisor, []},
+
+        # 4. Session Recording Supervisor
+        {IotaService.Session.Supervisor, []}
       ] ++ web_children()
 
     # rest_for_one: if NIF.Loader crashes, restart Identity and Notarization supervisors
@@ -71,9 +76,9 @@ defmodule IotaService.Application do
   defp web_children do
     if Application.get_env(:iota_service, :start_web, true) do
       port = Application.get_env(:iota_service, :port, 4000)
-      Logger.info("Starting web server on port #{port}")
+      Logger.info("Starting web server on 0.0.0.0:#{port}")
 
-      [{Bandit, plug: IotaService.Web.Router, port: port}]
+      [{Bandit, plug: IotaService.Web.Router, port: port, ip: {0, 0, 0, 0}}]
     else
       []
     end

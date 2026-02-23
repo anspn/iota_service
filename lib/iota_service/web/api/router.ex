@@ -5,9 +5,10 @@ defmodule IotaService.Web.API.Router do
   All routes produce `application/json` responses.
   Mounts sub-routers per domain:
 
-  - `/api/auth/*`  → Authentication (login, token refresh)
-  - `/api/dids/*`  → DID / Identity management
-  - `/api/health`  → Health check
+  - `/api/auth/*`      → Authentication (login, token refresh)
+  - `/api/dids/*`      → DID / Identity management
+  - `/api/sessions/*`  → TTY session recording & notarization
+  - `/api/health`      → Health check
 
   Future:
   - `/api/notarizations/*` → Notarization CRUD
@@ -19,13 +20,14 @@ defmodule IotaService.Web.API.Router do
   alias IotaService.Web.API.Helpers
 
   # Parse JSON bodies for all API routes
-  plug Plug.Parsers,
+  plug(Plug.Parsers,
     parsers: [:json],
     pass: ["application/json"],
     json_decoder: Jason
+  )
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   # --- Health ---------------------------------------------------------------
 
@@ -44,8 +46,9 @@ defmodule IotaService.Web.API.Router do
 
   # --- Domain routers -------------------------------------------------------
 
-  forward "/auth", to: IotaService.Web.API.AuthHandler
-  forward "/dids", to: IotaService.Web.API.IdentityHandler
+  forward("/auth", to: IotaService.Web.API.AuthHandler)
+  forward("/dids", to: IotaService.Web.API.IdentityHandler)
+  forward("/sessions", to: IotaService.Web.API.SessionHandler)
 
   # --- Catch-all ------------------------------------------------------------
 

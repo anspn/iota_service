@@ -15,19 +15,12 @@
                placeholder="did:iota:0x..." required />
         <small>Enter the Decentralized Identifier issued to you (e.g. <code>did:iota:0xabc…</code>).</small>
       </label>
-      <div class="grid">
-        <label>
-          Node URL
-          <input type="url" id="portal-node-url"
-                 placeholder="Leave empty to use server default" />
-        </label>
-        <label>
-          Identity Package ID
-          <input type="text" id="portal-identity-pkg-id"
-                 placeholder="0x... (empty for auto-discovery)" />
-          <small>Leave empty for official networks.</small>
-        </label>
-      </div>
+      <label>
+        Identity Package ID
+        <input type="text" id="portal-identity-pkg-id"
+               placeholder="0x... (empty for auto-discovery)" />
+        <small>Leave empty for official networks.</small>
+      </label>
       <button type="submit" id="btn-upload-did">Validate on-chain</button>
     </form>
     <div id="upload-did-status" class="notice" style="display:none;"></div>

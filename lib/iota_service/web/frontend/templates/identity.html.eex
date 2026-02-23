@@ -23,19 +23,12 @@
                  placeholder="iotaprivkey1... or base64 Ed25519 key" required />
           <small>Your Ed25519 private key (Bech32 or Base64). Never leaves the browser → server → NIF pipeline.</small>
         </label>
-        <div class="grid">
-          <label>
-            Node URL
-            <input type="url" id="did-node-url"
-                   placeholder="Leave empty to use server default" />
-          </label>
-          <label>
-            Identity Package ID
-            <input type="text" id="did-identity-pkg-id"
-                   placeholder="0x... (empty for auto-discovery)" />
-            <small>Move package ObjectID. Leave empty for official networks.</small>
-          </label>
-        </div>
+        <label>
+          Identity Package ID
+          <input type="text" id="did-identity-pkg-id"
+                 placeholder="0x... (empty for auto-discovery)" />
+          <small>Move package ObjectID. Leave empty for official networks (auto-discovery).</small>
+        </label>
       </div>
 
       <details id="local-only-section" style="display:none;">
@@ -68,18 +61,11 @@
         <input type="text" id="resolve-did-input"
                placeholder="did:iota:0x..." />
       </label>
-      <div class="grid">
-        <label>
-          Node URL
-          <input type="url" id="resolve-node-url"
-                 placeholder="Leave empty to use server default" />
-        </label>
-        <label>
-          Identity Package ID
-          <input type="text" id="resolve-identity-pkg-id"
-                 placeholder="0x... (empty for auto)" />
-        </label>
-      </div>
+      <label>
+        Identity Package ID
+        <input type="text" id="resolve-identity-pkg-id"
+               placeholder="0x... (empty for auto)" />
+      </label>
       <button type="submit" id="btn-resolve-did" class="outline">Resolve</button>
     </form>
     <pre id="resolve-did-result" class="result-box" style="display:none;"></pre>
@@ -104,16 +90,10 @@
                  placeholder="iotaprivkey1... or base64" required />
         </label>
       </div>
-      <div class="grid">
-        <label>
-          Node URL <small>(optional)</small>
-          <input type="url" id="revoke-node-url" placeholder="Leave empty to use server default" />
-        </label>
-        <label>
-          Identity Package ID <small>(optional)</small>
-          <input type="text" id="revoke-identity-pkg-id" placeholder="0x..." />
-        </label>
-      </div>
+      <label>
+        Identity Package ID <small>(optional)</small>
+        <input type="text" id="revoke-identity-pkg-id" placeholder="0x..." />
+      </label>
       <button type="submit" id="btn-revoke-did" class="outline secondary">Deactivate</button>
     </form>
     <pre id="revoke-did-result" class="result-box" style="display:none;"></pre>

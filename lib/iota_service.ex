@@ -33,14 +33,17 @@ defmodule IotaService do
   ├── Identity.Supervisor  - DID services
   │   ├── Identity.Cache   - ETS cache for DIDs
   │   └── Identity.Server  - DID operations (local + ledger)
-  └── Notarization.Supervisor
-      ├── Notarization.Queue  - Job queue
-      └── Notarization.Server - Notarization operations (local + ledger CRUD)
+  ├── Notarization.Supervisor
+  │   ├── Notarization.Queue  - Job queue
+  │   └── Notarization.Server - Notarization operations (local + ledger CRUD)
+  └── Session.Supervisor
+      └── Session.Manager  - TTY session recording & notarization
   ```
   """
 
   alias IotaService.Identity
   alias IotaService.Notarization
+  alias IotaService.Session
 
   # ============================================================================
   # Identity API — Local Operations
@@ -195,7 +198,9 @@ defmodule IotaService do
   `update_notarization/3`.
   """
   @spec create_dynamic_notarization(keyword()) :: {:ok, map()} | {:error, term()}
-  defdelegate create_dynamic_notarization(opts), to: Notarization.Server, as: :create_dynamic_on_chain
+  defdelegate create_dynamic_notarization(opts),
+    to: Notarization.Server,
+    as: :create_dynamic_on_chain
 
   @doc """
   Read a notarization from the IOTA Rebased ledger by object ID.
@@ -205,7 +210,9 @@ defmodule IotaService do
   - `:notarize_pkg_id` - Notarization Move package ObjectID (default: from app config)
   """
   @spec read_notarization(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
-  defdelegate read_notarization(object_id, opts \\ []), to: Notarization.Server, as: :read_on_chain
+  defdelegate read_notarization(object_id, opts \\ []),
+    to: Notarization.Server,
+    as: :read_on_chain
 
   @doc """
   Update the state of a dynamic notarization.
@@ -241,13 +248,64 @@ defmodule IotaService do
   Enqueue data for batch notarization.
   """
   @spec enqueue_notarization(binary(), String.t()) :: {:ok, reference()} | {:error, :queue_full}
-  defdelegate enqueue_notarization(data, tag \\ "iota_service"), to: Notarization.Queue, as: :enqueue
+  defdelegate enqueue_notarization(data, tag \\ "iota_service"),
+    to: Notarization.Queue,
+    as: :enqueue
 
   @doc """
   Get notarization queue statistics.
   """
   @spec queue_stats() :: map()
   defdelegate queue_stats(), to: Notarization.Queue, as: :stats
+
+  # ============================================================================
+  # Session API — TTY Session Recording & Notarization
+  # ============================================================================
+
+  @doc """
+  Start a new TTY recording session.
+
+  Creates a session linked to the given DID. The session records all
+  commands executed in the ttyd terminal and notarizes them on the
+  IOTA Tangle when ended.
+
+  Returns `{:ok, session}` with `:session_id`, `:did`, `:status` (`:active`).
+  """
+  @spec start_session(String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  defdelegate start_session(did, user_id), to: Session.Manager
+
+  @doc """
+  End a TTY recording session and trigger notarization.
+
+  Reads the command history, hashes it, creates a notarization payload,
+  and (if configured) publishes the hash on-chain.
+  """
+  @spec end_session(String.t()) :: {:ok, map()} | {:error, term()}
+  defdelegate end_session(session_id), to: Session.Manager
+
+  @doc """
+  Get a session by ID.
+  """
+  @spec get_session(String.t()) :: {:ok, map()} | :not_found
+  defdelegate get_session(session_id), to: Session.Manager
+
+  @doc """
+  List all sessions, optionally filtered.
+
+  ## Options
+  - `:user_id` — Filter by user ID
+  - `:did` — Filter by DID
+  - `:status` — Filter by status
+  - `:limit` — Maximum results (default: 100)
+  """
+  @spec list_sessions(keyword()) :: [map()]
+  defdelegate list_sessions(opts \\ []), to: Session.Manager
+
+  @doc """
+  Get session recording statistics.
+  """
+  @spec session_stats() :: map()
+  defdelegate session_stats(), to: Session.Manager, as: :stats
 
   # ============================================================================
   # Health & Status

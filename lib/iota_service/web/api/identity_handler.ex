@@ -17,9 +17,9 @@ defmodule IotaService.Web.API.IdentityHandler do
   alias IotaService.Web.Plugs.Authenticate
 
   # Require Bearer token on all identity routes
-  plug Authenticate
-  plug :match
-  plug :dispatch
+  plug(Authenticate)
+  plug(:match)
+  plug(:dispatch)
 
   # ---------------------------------------------------------------------------
   # POST /api/dids/validate — Validate a DID on-chain
@@ -249,12 +249,13 @@ defmodule IotaService.Web.API.IdentityHandler do
 
     case IotaService.resolve_did(did, opts) do
       {:ok, resolved} ->
-        {:ok, %{
-          did: resolved["did"],
-          network: resolved["network"],
-          document: resolved["document"],
-          status: "active"
-        }}
+        {:ok,
+         %{
+           did: resolved["did"],
+           network: resolved["network"],
+           document: resolved["document"],
+           status: "active"
+         }}
 
       error ->
         error
@@ -276,11 +277,12 @@ defmodule IotaService.Web.API.IdentityHandler do
 
       case IotaService.deactivate_did(did, opts) do
         {:ok, _} ->
-          {:ok, %{
-            did: did,
-            status: "deactivated",
-            message: "DID has been permanently deactivated on-chain"
-          }}
+          {:ok,
+           %{
+             did: did,
+             status: "deactivated",
+             message: "DID has been permanently deactivated on-chain"
+           }}
 
         error ->
           error
@@ -300,7 +302,9 @@ defmodule IotaService.Web.API.IdentityHandler do
       did: did_result.did,
       network: to_string(Map.get(did_result, :network, "iota")),
       label: label,
-      created_at: Map.get(did_result, :published_at, Map.get(did_result, :generated_at, DateTime.utc_now())) |> DateTime.to_iso8601(),
+      created_at:
+        Map.get(did_result, :published_at, Map.get(did_result, :generated_at, DateTime.utc_now()))
+        |> DateTime.to_iso8601(),
       status: status,
       document: doc
     }

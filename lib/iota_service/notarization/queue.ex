@@ -55,7 +55,8 @@ defmodule IotaService.Notarization.Queue do
 
     state = %{
       queue: :queue.new(),
-      jobs: %{},  # job_ref => job_state
+      # job_ref => job_state
+      jobs: %{},
       processed: 0,
       failed: 0
     }
@@ -128,11 +129,12 @@ defmodule IotaService.Notarization.Queue do
                   {Map.put(state.jobs, job_ref, updated_job), state.processed, state.failed + 1}
               end
 
-            new_state = %{state |
-              queue: new_queue,
-              jobs: new_jobs,
-              processed: new_processed,
-              failed: new_failed
+            new_state = %{
+              state
+              | queue: new_queue,
+                jobs: new_jobs,
+                processed: new_processed,
+                failed: new_failed
             }
 
             {:reply, result, new_state}

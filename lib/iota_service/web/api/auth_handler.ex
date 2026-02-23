@@ -12,8 +12,8 @@ defmodule IotaService.Web.API.AuthHandler do
   alias IotaService.Web.API.Helpers
   alias IotaService.Web.Auth
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   # POST /api/auth/login
   post "/login" do

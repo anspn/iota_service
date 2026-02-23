@@ -14,8 +14,8 @@ defmodule IotaService.Web.Frontend.Router do
 
   alias IotaService.Web.Frontend.Templates
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   # --- Root / Dashboard ---------------------------------------------------
   get "/" do
@@ -23,12 +23,13 @@ defmodule IotaService.Web.Frontend.Router do
     cache_stats = IotaService.Identity.Cache.stats()
     queue_stats = IotaService.queue_stats()
 
-    html = Templates.render(:dashboard, %{
-      nif_info: nif_info,
-      cache_stats: cache_stats,
-      queue_stats: queue_stats,
-      login_required: login_required?()
-    })
+    html =
+      Templates.render(:dashboard, %{
+        nif_info: nif_info,
+        cache_stats: cache_stats,
+        queue_stats: queue_stats,
+        login_required: login_required?()
+      })
 
     conn
     |> put_resp_content_type("text/html")
@@ -46,10 +47,23 @@ defmodule IotaService.Web.Frontend.Router do
 
   # --- User Portal --------------------------------------------------------
   get "/portal" do
-    html = Templates.render(:portal, %{
-      login_required: login_required?(),
-      ttyd_url: Application.get_env(:iota_service, :ttyd_url, "http://localhost:7681")
-    })
+    html =
+      Templates.render(:portal, %{
+        login_required: login_required?(),
+        ttyd_url: Application.get_env(:iota_service, :ttyd_url, "http://localhost:7681")
+      })
+
+    conn
+    |> put_resp_content_type("text/html")
+    |> send_resp(200, html)
+  end
+
+  # --- Sessions -----------------------------------------------------------
+  get "/sessions" do
+    html =
+      Templates.render(:sessions, %{
+        login_required: login_required?()
+      })
 
     conn
     |> put_resp_content_type("text/html")
@@ -58,9 +72,10 @@ defmodule IotaService.Web.Frontend.Router do
 
   # --- Identity -----------------------------------------------------------
   get "/identity" do
-    html = Templates.render(:identity, %{
-      login_required: login_required?()
-    })
+    html =
+      Templates.render(:identity, %{
+        login_required: login_required?()
+      })
 
     conn
     |> put_resp_content_type("text/html")

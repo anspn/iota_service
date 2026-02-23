@@ -3,8 +3,8 @@
  *
  * Auth flow with RBAC:
  *   - On login, JWT and role are stored in sessionStorage.
- *   - admin role → redirected to / (dashboard), can navigate to /identity.
- *   - user  role → redirected to /portal (DID upload page).
+ *   - admin role → redirected to / (dashboard), can navigate to /identity, /sessions.
+ *   - user  role → redirected to /portal (DID upload page), can view /sessions.
  *   - Nav links are rendered dynamically per role.
  *   - When login_required is off, auth checks are skipped.
  */
@@ -84,9 +84,10 @@ async function api(method, path, body = null) {
   const res = await fetch(`/api${path}`, opts);
   const data = await res.json();
 
-  // auto-logout on 401
-  if (res.status === 401) {
-    clearToken();
+  // Auto-logout and redirect on 401 (expired or invalid token)
+  if (res.status === 401 && isLoginRequired()) {
+    clearSession();
+    window.location.href = "/login";
   }
   return { status: res.status, data };
 }
@@ -132,8 +133,10 @@ function updateNav() {
   if (role === "admin" || !isLoginRequired()) {
     insertNavLink(navLinks, authItem, "/", "Dashboard", "dashboard");
     insertNavLink(navLinks, authItem, "/identity", "Identity", "identity");
+    insertNavLink(navLinks, authItem, "/sessions", "Sessions", "sessions");
   } else if (role === "user") {
     insertNavLink(navLinks, authItem, "/portal", "Portal", "portal");
+    insertNavLink(navLinks, authItem, "/sessions", "Sessions", "sessions");
   }
 
   // Auth item
@@ -267,7 +270,6 @@ function initIdentity() {
 
     // Toggle required attributes
     document.getElementById("did-secret-key").required = on;
-    document.getElementById("did-node-url").required = on;
   }
   publishSwitch.addEventListener("change", syncPublishUI);
   syncPublishUI(); // run once on load
@@ -282,7 +284,6 @@ function initIdentity() {
       body = {
         publish: true,
         secret_key: document.getElementById("did-secret-key").value,
-        node_url: document.getElementById("did-node-url").value,
         identity_pkg_id:
           document.getElementById("did-identity-pkg-id").value || undefined,
       };
@@ -315,12 +316,10 @@ function initIdentity() {
     .addEventListener("submit", async () => {
       setLoading("btn-resolve-did", true);
       const did = document.getElementById("resolve-did-input").value;
-      const nodeUrl = document.getElementById("resolve-node-url").value;
       const pkgId = document.getElementById("resolve-identity-pkg-id").value;
 
       try {
         const params = new URLSearchParams();
-        if (nodeUrl) params.set("node_url", nodeUrl);
         if (pkgId) params.set("identity_pkg_id", pkgId);
         const qs = params.toString();
 
@@ -342,8 +341,6 @@ function initIdentity() {
       setLoading("btn-revoke-did", true);
       const did = document.getElementById("revoke-did-input").value;
       const secretKey = document.getElementById("revoke-secret-key").value;
-      const nodeUrl =
-        document.getElementById("revoke-node-url").value || undefined;
       const pkgId =
         document.getElementById("revoke-identity-pkg-id").value || undefined;
 
@@ -351,7 +348,6 @@ function initIdentity() {
         const encodedDid = encodeURIComponent(did);
         const res = await api("POST", `/dids/${encodedDid}/revoke`, {
           secret_key: secretKey,
-          node_url: nodeUrl,
           identity_pkg_id: pkgId,
         });
         show("revoke-did-result", res.data, res.status >= 400);
@@ -382,6 +378,45 @@ function initPortal() {
   const disconnectBtn = document.getElementById("btn-disconnect-terminal");
 
   /**
+   * Start a recording session via the API.
+   * @param {string} did — The validated DID
+   * @returns {Promise<string|null>} session_id or null on failure
+   */
+  async function startRecordingSession(did) {
+    try {
+      const res = await api("POST", "/sessions", { did });
+      if (res.status === 201 && res.data.session_id) {
+        sessionStorage.setItem("iota_session_id", res.data.session_id);
+        return res.data.session_id;
+      }
+      console.warn("Failed to start recording session:", res.data);
+      return null;
+    } catch (err) {
+      console.warn("Recording session start error:", err);
+      return null;
+    }
+  }
+
+  /**
+   * End a recording session via the API (triggers notarization).
+   * @param {string} sessionId
+   */
+  async function endRecordingSession(sessionId) {
+    if (!sessionId) return;
+    try {
+      const res = await api("POST", `/sessions/${sessionId}/end`);
+      if (res.status === 200) {
+        console.log("Session ended and notarized:", res.data);
+      } else {
+        console.warn("Failed to end session:", res.data);
+      }
+    } catch (err) {
+      console.warn("Recording session end error:", err);
+    }
+    sessionStorage.removeItem("iota_session_id");
+  }
+
+  /**
    * Show the terminal iframe, hiding the validation form.
    * @param {string} did — The validated DID to display as a badge
    */
@@ -396,10 +431,22 @@ function initPortal() {
   }
 
   /** Hide the terminal, return to the validation form. */
-  function hideTerminal() {
+  async function hideTerminal() {
     terminalIframe.src = "about:blank";
     terminalCard.style.display = "none";
     validationCard.style.display = "block";
+
+    // End the recording session (triggers notarization).
+    // We wait 1 second before calling the API so that the bash EXIT trap
+    // has time to flush the history file to disk after the WebSocket closes.
+    const sessionId = sessionStorage.getItem("iota_session_id");
+    if (sessionId) {
+      if (disconnectBtn) disconnectBtn.setAttribute("aria-busy", "true");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await endRecordingSession(sessionId);
+      if (disconnectBtn) disconnectBtn.setAttribute("aria-busy", "false");
+    }
+
     sessionStorage.removeItem("iota_portal_did");
   }
 
@@ -423,16 +470,15 @@ function initPortal() {
     if (resultEl) resultEl.style.display = "none";
 
     const did = document.getElementById("upload-did-input").value.trim();
-    const nodeUrl = document.getElementById("portal-node-url").value.trim();
     const pkgId = document.getElementById("portal-identity-pkg-id").value.trim();
 
     try {
       const body = { did };
-      if (nodeUrl) body.node_url = nodeUrl;
       if (pkgId) body.identity_pkg_id = pkgId;
       const res = await api("POST", "/dids/validate", body);
       if (res.status === 200 && res.data.valid) {
-        // DID is valid — show the terminal instead of a success message
+        // DID is valid — start a recording session and show the terminal
+        await startRecordingSession(did);
         showTerminal(did);
       } else {
         showNotice(
@@ -451,6 +497,193 @@ function initPortal() {
 }
 
 // ---------------------------------------------------------------------------
+// Sessions page
+// ---------------------------------------------------------------------------
+
+function initSessions() {
+  const listCard = document.getElementById("session-list-card");
+  if (!listCard) return;
+
+  // Both admin and user can view sessions
+  if (isLoginRequired() && !isLoggedIn()) {
+    window.location.href = "/login";
+    return;
+  }
+
+  const role = getRole();
+
+  // Load stats for admin
+  if (role === "admin" || !isLoginRequired()) {
+    loadSessionStats();
+  }
+
+  // Load session list
+  loadSessionList();
+
+  // Refresh button
+  const refreshBtn = document.getElementById("btn-refresh-sessions");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      loadSessionList();
+      if (role === "admin" || !isLoginRequired()) loadSessionStats();
+    });
+  }
+
+  // Dialog close buttons
+  const dialog = document.getElementById("session-detail-dialog");
+  const closeBtn = document.getElementById("btn-close-session-detail");
+  const closeFooterBtn = document.getElementById("btn-close-session-detail-footer");
+  if (closeBtn) closeBtn.addEventListener("click", () => dialog.close());
+  if (closeFooterBtn) closeFooterBtn.addEventListener("click", () => dialog.close());
+}
+
+async function loadSessionStats() {
+  const card = document.getElementById("session-stats-card");
+  try {
+    const res = await api("GET", "/sessions/stats");
+    if (res.status === 200) {
+      card.style.display = "block";
+      document.getElementById("stat-total").textContent = res.data.total || 0;
+      document.getElementById("stat-active").textContent = res.data.active || 0;
+      document.getElementById("stat-notarized").textContent = res.data.notarized || 0;
+      document.getElementById("stat-failed").textContent = res.data.failed || 0;
+    }
+  } catch (err) {
+    console.warn("Failed to load session stats:", err);
+  }
+}
+
+async function loadSessionList() {
+  const tbody = document.getElementById("sessions-tbody");
+  const table = document.getElementById("sessions-table");
+  const empty = document.getElementById("sessions-empty");
+
+  try {
+    const res = await api("GET", "/sessions");
+    if (res.status === 200 && res.data.sessions) {
+      const sessions = res.data.sessions;
+      if (sessions.length === 0) {
+        table.style.display = "none";
+        empty.style.display = "block";
+        return;
+      }
+
+      empty.style.display = "none";
+      table.style.display = "table";
+      tbody.innerHTML = "";
+
+      for (const s of sessions) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><code>${s.session_id.substring(0, 16)}…</code></td>
+          <td><code title="${s.did}">${truncateDid(s.did)}</code></td>
+          <td>${formatDate(s.started_at)}</td>
+          <td>${s.command_count || 0}</td>
+          <td>${statusBadge(s.status)}</td>
+          <td>${s.notarization_hash
+            ? `<code title="${s.notarization_hash}">${s.notarization_hash.substring(0, 12)}…</code>`
+            : "—"}</td>
+          <td><button class="outline secondary btn-view-session" data-id="${s.session_id}" style="width:auto;padding:4px 12px;">View</button></td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // Bind view buttons
+      document.querySelectorAll(".btn-view-session").forEach((btn) => {
+        btn.addEventListener("click", () => viewSessionDetail(btn.dataset.id));
+      });
+    }
+  } catch (err) {
+    console.warn("Failed to load sessions:", err);
+    empty.style.display = "block";
+    empty.textContent = "Failed to load sessions.";
+    empty.className = "notice error";
+  }
+}
+
+async function viewSessionDetail(sessionId) {
+  const dialog = document.getElementById("session-detail-dialog");
+  try {
+    const res = await api("GET", `/sessions/${sessionId}`);
+    if (res.status === 200) {
+      const s = res.data;
+      document.getElementById("detail-session-id").textContent = s.session_id;
+      document.getElementById("detail-status").innerHTML = statusBadge(s.status);
+      document.getElementById("detail-did").textContent = s.did || "—";
+      document.getElementById("detail-user-id").textContent = s.user_id || "—";
+      document.getElementById("detail-started-at").textContent = s.started_at
+        ? new Date(s.started_at).toLocaleString()
+        : "—";
+      document.getElementById("detail-ended-at").textContent = s.ended_at
+        ? new Date(s.ended_at).toLocaleString()
+        : "—";
+
+      // Notarization section
+      document.getElementById("detail-hash").textContent = s.notarization_hash || "—";
+
+      const onchainSection = document.getElementById("detail-onchain-section");
+      if (s.on_chain_id) {
+        onchainSection.style.display = "block";
+        document.getElementById("detail-onchain-id").textContent = s.on_chain_id;
+      } else {
+        onchainSection.style.display = "none";
+      }
+
+      const errorSection = document.getElementById("detail-error-section");
+      if (s.error) {
+        errorSection.style.display = "block";
+        document.getElementById("detail-error").textContent = s.error;
+      } else {
+        errorSection.style.display = "none";
+      }
+
+      // Commands section
+      const commands = s.commands || [];
+      document.getElementById("detail-command-count").textContent = commands.length;
+      if (commands.length > 0) {
+        document.getElementById("detail-commands").textContent = commands
+          .map((c) => {
+            const ts = c.timestamp ? `[${c.timestamp}] ` : "";
+            return `${ts}${c.command}`;
+          })
+          .join("\n");
+      } else {
+        document.getElementById("detail-commands").textContent =
+          "(No commands recorded — history may not have been flushed)";
+      }
+
+      dialog.showModal();
+    }
+  } catch (err) {
+    console.warn("Failed to load session detail:", err);
+  }
+}
+
+// --- Session UI helpers ---
+
+function truncateDid(did) {
+  if (!did || did.length < 30) return did || "—";
+  return did.substring(0, 20) + "…" + did.substring(did.length - 8);
+}
+
+function statusBadge(status) {
+  const colors = {
+    active: "#17a2b8",
+    ended: "#6c757d",
+    notarized: "rgb(5, 204, 147)",
+    failed: "#a04048",
+  };
+  const color = colors[status] || "#6c757d";
+  return `<span style="color:${color};font-weight:600;">${status}</span>`;
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return "—";
+  const d = new Date(isoStr);
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -460,4 +693,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initDashboard();
   initIdentity();
   initPortal();
+  initSessions();
 });

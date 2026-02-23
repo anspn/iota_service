@@ -67,6 +67,25 @@ defmodule IotaService.Web.Auth do
     end
   end
 
+  @doc """
+  Verify a JWT token ignoring the `exp` claim.
+
+  Checks that the signature is valid but does **not** validate claim
+  expiration. Used for endpoints that must succeed even after the token
+  expires (e.g. ending a TTY session that outlived the token TTL).
+
+  Returns `{:ok, claims}` or `{:error, reason}`.
+  """
+
+  ## TODO modify this behaviour to handle expiration of tokens
+  @spec verify_token_ignoring_expiry(String.t()) :: {:ok, map()} | {:error, term()}
+  def verify_token_ignoring_expiry(token) when is_binary(token) do
+    case verify(token, signer()) do
+      {:ok, claims} -> {:ok, claims}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   # --- Private --------------------------------------------------------------
 
   defp signer do

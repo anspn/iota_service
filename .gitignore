@@ -34,5 +34,8 @@ config/local.exs
 # Docker env file (contains secrets)
 .env
 
+# Session recordings (dev mode)
+/priv/sessions/
+
 # AI context (just testing out)
 CLAUDE.md
